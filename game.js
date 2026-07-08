@@ -174,14 +174,25 @@ function nearestOpponent(player){
   return players.filter(p=>p.team!==player.team).sort((a,b)=>flatDistance(player,a)-flatDistance(player,b))[0];
 }
 
+function userReceiverFor(player){
+  return players.find(p=>p.user&&p.team===player.team&&p!==player&&!p.goalkeeper);
+}
+
+function nearestOpponentDistanceTo(target,opponents){
+  return Math.min(...opponents.map(p=>flatDistance(target,p)),99);
+}
+
 function choosePassTarget(player,includeGoalkeeper=false){
   const attackZ=player.team==='blue'?-1:1;
   const candidates=players.filter(p=>p.team===player.team&&p!==player&&(includeGoalkeeper||!p.goalkeeper));
+  const opponents=players.filter(p=>p.team!==player.team);
   return candidates.sort((a,b)=>{
     const score=c=>{
-      const space=Math.min(...players.filter(p=>p.team!==player.team).map(p=>flatDistance(c,p)));
+      const space=nearestOpponentDistanceTo(c,opponents);
       const progress=(c.position.z-player.position.z)*attackZ;
-      return space*1.5+progress*.72-flatDistance(player,c)*.12;
+      const clearLane=hasClearLane(player.position,c.position,opponents,2.2);
+      const userBonus=c.user?18:0;
+      return space*1.5+progress*.72-flatDistance(player,c)*.12+(clearLane?4.5:-5)+userBonus;
     };
     return score(b)-score(a);
   })[0];
@@ -270,8 +281,20 @@ class Player {
     const goal=new THREE.Vector3(0,0,attackZ*FIELD.halfL),goalDistance=flatDistance(this,{position:goal});
     const pressure=nearestOpponent(this),pressureDistance=pressure?flatDistance(this,pressure):99;
     const passTarget=choosePassTarget(this),shotLaneClear=hasClearLane(this.position,goal,opponents,3.1);
+    const userReceiver=userReceiverFor(this);
+    const userDistance=userReceiver?flatDistance(this,userReceiver):99;
+    const userSpace=userReceiver?nearestOpponentDistanceTo(userReceiver,opponents):0;
+    const userLaneClear=userReceiver?hasClearLane(this.position,userReceiver.position,opponents,2.25):false;
+    const shouldPassToUser=userReceiver&&userDistance>4.2&&userDistance<58&&userLaneClear&&userSpace>2.7&&(pressureDistance<9||goalDistance>28||Math.random()<.48);
 
     if(this.decisionTimer<=0){
+      if(goalDistance<24&&shotLaneClear){
+        const aim=new THREE.Vector3((Math.random()-.5)*FIELD.goalHalf*.9,0,attackZ*FIELD.halfL);kickBall(this,flatDirection(ball.position,aim),.78+Math.random()*.22,.11,true);this.cooldown=.7;this.decisionTimer=.55;return;
+      }
+      if(shouldPassToUser){
+        const lead=userReceiver.position.clone().addScaledVector(userReceiver.velocity,.32);
+        kickBall(this,flatDirection(ball.position,lead),clamp(userDistance/34,.38,.86),.03,false);this.cooldown=.48;this.decisionTimer=.38+Math.random()*.22;return;
+      }
       if(goalDistance<42&&shotLaneClear){
         const aim=new THREE.Vector3((Math.random()-.5)*FIELD.goalHalf*.9,0,attackZ*FIELD.halfL);kickBall(this,flatDirection(ball.position,aim),.78+Math.random()*.22,.11,true);this.cooldown=.7;this.decisionTimer=.55;return;
       }

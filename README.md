@@ -21,6 +21,7 @@ Abra `index.html` em um navegador moderno.
 
 - Partida 4 contra 4 com adversários, companheiros e goleiros controlados pelo computador
 - Inteligência tática com funções, marcação, cobertura, apoio, passes e decisões sob pressão
+- Companheiros do time azul procuram tocar a bola para o jogador principal quando ele está livre
 - Campo com dimensões duplicadas em largura e comprimento
 - Controle de um único atleta
 - Sprint limitado por energia
