@@ -8,9 +8,9 @@ Abra `index.html` em um navegador moderno.
 
 - `WASD`: movimento
 - `Shift`: sprint
-- Mouse: mirar
-- Botão direito + arrastar: girar a câmera
-- Setas direcionais: girar a câmera pelo teclado
+- Movimento do mouse: girar a câmera durante a partida
+- `J` e `L`: girar a câmera pelo teclado
+- `I` e `K`: inclinar a câmera pelo teclado
 - Rodinha do mouse: aproximar ou afastar a câmera
 - Segurar e soltar o clique: chute carregado
 - `Espaço`: passe direcionado
