@@ -16,6 +16,8 @@ Abra `index.html` em um navegador moderno.
 - Segurar e soltar o clique: chute carregado
 - `Espaço`: passe direcionado
 - `E`: desarme com impulso
+- Celular/tablet: joystick na esquerda, botões de chute, passe, desarme e correr na direita
+- Celular/tablet: arraste o dedo na tela para girar a câmera
 
 ## Mecânicas implementadas
 
@@ -27,6 +29,7 @@ Abra `index.html` em um navegador moderno.
 - Sprint limitado por energia
 - Chute carregado com direção livre
 - Passe assistido para companheiros
+- Controles mobile sensíveis ao toque
 - Desarme com impulso e tempo de recarga
 - Paredes com rebote e bola sempre em jogo
 - Placar, cronômetro, reinício após gol e resultado da partida

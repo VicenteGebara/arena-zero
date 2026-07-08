@@ -3,7 +3,10 @@ const canvas = document.getElementById('game');
 const ui = {
   blue: document.getElementById('blueScore'), red: document.getElementById('redScore'),
   clock: document.getElementById('clock'), stamina: document.getElementById('staminaBar'),
-  start: document.getElementById('startScreen'), message: document.getElementById('message'), sprint: document.getElementById('sprintButton')
+  start: document.getElementById('startScreen'), message: document.getElementById('message'), sprint: document.getElementById('sprintButton'),
+  moveStick: document.getElementById('moveStick'), mobileShoot: document.getElementById('mobileShoot'),
+  mobilePass: document.getElementById('mobilePass'), mobileTackle: document.getElementById('mobileTackle'),
+  mobileSprint: document.getElementById('mobileSprint')
 };
 
 if (!window.THREE) {
@@ -36,6 +39,7 @@ const FIELD = { halfW: 46, halfL: 72, goalHalf: 7, goalDepth: 4 };
 let running = false, time = 120, blueScore = 0, redScore = 0, kickoff = 0, charge = 0, mouseDown = false;
 let sprintButtonHeld = false;
 let cameraShake = 0, goalGlow = 0;
+const touchInput = { x: 0, y: 0, moveId: null, cameraId: null, cameraX: 0, cameraY: 0, shootHeld: false };
 const visualEffects = new THREE.Group();
 scene.add(visualEffects);
 
@@ -44,6 +48,9 @@ const flatDistance = (a, b) => Math.hypot(a.position.x - b.position.x, a.positio
 const flatDirection = (from, to) => new THREE.Vector3(to.x - from.x, 0, to.z - from.z).normalize();
 const cameraForward = () => new THREE.Vector3(-Math.sin(cameraOrbit.yaw), 0, -Math.cos(cameraOrbit.yaw));
 const cameraRight = () => new THREE.Vector3(Math.cos(cameraOrbit.yaw), 0, -Math.sin(cameraOrbit.yaw));
+const coarsePointer = () => matchMedia('(pointer: coarse)').matches;
+const touchPointer = e => e.pointerType === 'touch' || e.pointerType === 'pen';
+const usePointerLock = () => !coarsePointer();
 
 function material(color, roughness = 0.72, metalness = 0.05) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -236,7 +243,7 @@ class Player {
     if(flatDistance(this,ball)<1.25) this.touchBall();
   }
   userMove(dt){
-    const forwardInput=(keys.KeyW?1:0)-(keys.KeyS?1:0), sideInput=(keys.KeyD?1:0)-(keys.KeyA?1:0);
+    const forwardInput=(keys.KeyW?1:0)-(keys.KeyS?1:0)+touchInput.y, sideInput=(keys.KeyD?1:0)-(keys.KeyA?1:0)+touchInput.x;
     const move=cameraForward().multiplyScalar(forwardInput).add(cameraRight().multiplyScalar(sideInput));
     const sprint=(keys.ShiftLeft||keys.ShiftRight||sprintButtonHeld)&&this.stamina>1&&move.lengthSq()>0, speed=sprint?14.25:9.5;
     if(move.lengthSq()){ move.normalize(); this.velocity.addScaledVector(move,speed*8*dt); }
@@ -438,21 +445,62 @@ function resize(){
 function update(dt){
   updateCamera(dt); updateAim(); updateVisualEffects(dt); if(!running)return;
   if(kickoff>0)kickoff-=dt;else time=Math.max(0,time-dt);
-  if(mouseDown&&ball.owner===players[0])charge=clamp(charge+dt*.7,0,1);
+  if((mouseDown||touchInput.shootHeld)&&ball.owner===players[0])charge=clamp(charge+dt*.7,0,1);
   players.forEach(p=>p.update(dt)); resolvePlayers(); updateBall(dt);
   const mins=Math.floor(time/60),secs=Math.floor(time%60);ui.clock.textContent=`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;if(time<=0)endGame();
 }
 function animate(){requestAnimationFrame(animate);const dt=Math.min(clock3d.getDelta(),.033);resize();update(dt);aimRing.material.color.set(charge>.82?0xff5c4d:0xeaff65);const aimPulse=1+Math.sin(clock3d.elapsedTime*5)*.08+charge*.32;aimMarker.scale.setScalar(aimPulse);renderer.render(scene,camera);}
 
+function setStickFromPointer(e){
+  const rect=ui.moveStick.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,r=rect.width*.38;
+  const dx=clamp((e.clientX-cx)/r,-1,1),dy=clamp((e.clientY-cy)/r,-1,1),len=Math.hypot(dx,dy),scale=len>1?1/len:1;
+  touchInput.x=dx*scale; touchInput.y=-dy*scale;
+  ui.moveStick.querySelector('span').style.transform=`translate(${touchInput.x*r*.58}px,${-touchInput.y*r*.58}px)`;
+}
+function clearStick(){
+  touchInput.x=0; touchInput.y=0; touchInput.moveId=null;
+  ui.moveStick?.querySelector('span')?.style.setProperty('transform','translate(0,0)');
+}
+function bindTapButton(button,action){
+  if(!button)return;
+  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();action();button.classList.add('active');button.setPointerCapture?.(e.pointerId);});
+  const release=()=>button.classList.remove('active');
+  button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);
+}
+function bindSprintButton(button){
+  if(!button)return;
+  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();sprintButtonHeld=true;button.classList.add('active');button.setPointerCapture?.(e.pointerId);});
+  const release=()=>{sprintButtonHeld=false;button.classList.remove('active');};
+  button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);
+}
+function bindShootButton(button){
+  if(!button)return;
+  button.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();touchInput.shootHeld=true;button.classList.add('active');button.setPointerCapture?.(e.pointerId);});
+  const release=()=>{if(touchInput.shootHeld){touchInput.shootHeld=false;shoot();charge=0;}button.classList.remove('active');};
+  button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);
+}
+
 canvas.addEventListener('pointermove',e=>{
   const r=canvas.getBoundingClientRect();pointer.x=((e.clientX-r.left)/r.width)*2-1;pointer.y=-((e.clientY-r.top)/r.height)*2+1;
+  if(touchInput.cameraId===e.pointerId){
+    const dx=e.clientX-touchInput.cameraX,dy=e.clientY-touchInput.cameraY;
+    cameraOrbit.yaw-=dx*.006;cameraOrbit.pitch=clamp(cameraOrbit.pitch+dy*.0048,.2,.82);
+    touchInput.cameraX=e.clientX;touchInput.cameraY=e.clientY;pointer.set(0,0);e.preventDefault();
+  }
 });
 document.addEventListener('mousemove',e=>{
   if(document.pointerLockElement===canvas){cameraOrbit.yaw-=e.movementX*.0028;cameraOrbit.pitch=clamp(cameraOrbit.pitch+e.movementY*.0022,.2,.82);pointer.set(0,0);}
 });
 document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement===canvas)pointer.set(0,0);});
-canvas.addEventListener('pointerdown',e=>{if(e.button===0){mouseDown=true;if(running&&document.pointerLockElement!==canvas)canvas.requestPointerLock?.();}});
-window.addEventListener('pointerup',e=>{if(e.button===0&&mouseDown){mouseDown=false;shoot();charge=0;}});
+canvas.addEventListener('pointerdown',e=>{
+  if(touchPointer(e)){touchInput.cameraId=e.pointerId;touchInput.cameraX=e.clientX;touchInput.cameraY=e.clientY;pointer.set(0,0);canvas.setPointerCapture?.(e.pointerId);e.preventDefault();return;}
+  if(e.button===0){mouseDown=true;if(running&&usePointerLock()&&document.pointerLockElement!==canvas)canvas.requestPointerLock?.();}
+});
+window.addEventListener('pointerup',e=>{
+  if(e.pointerId===touchInput.cameraId){touchInput.cameraId=null;return;}
+  if(e.button===0&&mouseDown){mouseDown=false;shoot();charge=0;}
+});
+window.addEventListener('pointercancel',e=>{if(e.pointerId===touchInput.cameraId)touchInput.cameraId=null;});
 canvas.addEventListener('wheel',e=>{e.preventDefault();cameraOrbit.distance=clamp(cameraOrbit.distance+e.deltaY*.012,9,23);},{passive:false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 window.addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','KeyE','KeyI','KeyJ','KeyK','KeyL'].includes(e.code))e.preventDefault();if(e.code==='Space'&&!e.repeat)pass();if(e.code==='KeyE'&&!e.repeat)tackle();});
@@ -460,6 +508,17 @@ window.addEventListener('keyup',e=>{keys[e.code]=false;});
 ui.sprint.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();sprintButtonHeld=true;ui.sprint.classList.add('active');ui.sprint.setPointerCapture?.(e.pointerId);});
 const releaseSprint=()=>{sprintButtonHeld=false;ui.sprint.classList.remove('active');};
 ui.sprint.addEventListener('pointerup',releaseSprint);ui.sprint.addEventListener('pointercancel',releaseSprint);ui.sprint.addEventListener('lostpointercapture',releaseSprint);
-document.getElementById('startButton').addEventListener('click',()=>{blueScore=redScore=0;time=120;ui.blue.textContent=ui.red.textContent='0';reset();running=true;ui.start.classList.add('hidden');canvas.requestPointerLock?.();});
+if(ui.moveStick){
+  ui.moveStick.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();touchInput.moveId=e.pointerId;setStickFromPointer(e);ui.moveStick.setPointerCapture?.(e.pointerId);});
+  ui.moveStick.addEventListener('pointermove',e=>{if(e.pointerId===touchInput.moveId){e.preventDefault();setStickFromPointer(e);}});
+  ui.moveStick.addEventListener('pointerup',e=>{if(e.pointerId===touchInput.moveId)clearStick();});
+  ui.moveStick.addEventListener('pointercancel',e=>{if(e.pointerId===touchInput.moveId)clearStick();});
+  ui.moveStick.addEventListener('lostpointercapture',clearStick);
+}
+bindShootButton(ui.mobileShoot);
+bindTapButton(ui.mobilePass,pass);
+bindTapButton(ui.mobileTackle,tackle);
+bindSprintButton(ui.mobileSprint);
+document.getElementById('startButton').addEventListener('click',()=>{blueScore=redScore=0;time=120;ui.blue.textContent=ui.red.textContent='0';reset();running=true;ui.start.classList.add('hidden');if(usePointerLock())canvas.requestPointerLock?.();});
 
 addAtmosphere();addLights();addPitch();reset();camera.position.set(0,10,35);animate();
