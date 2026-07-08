@@ -19,7 +19,8 @@ Abra `index.html` em um navegador moderno.
 
 ## Mecânicas implementadas
 
-- Partida 3 contra 3 com adversários e companheiros controlados pelo computador
+- Partida 4 contra 4 com adversários, companheiros e goleiros controlados pelo computador
+- Campo com dimensões duplicadas em largura e comprimento
 - Controle de um único atleta
 - Sprint limitado por energia
 - Chute carregado com direção livre
