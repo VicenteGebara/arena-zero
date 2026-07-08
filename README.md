@@ -21,6 +21,11 @@ Abra `index.html` em um navegador moderno.
 
 ## Mecânicas implementadas
 
+- Tela de escolha de atleta antes da partida
+- Quatro perfis jogáveis: Vicente, Raio, Titã e Maestro
+- Atributos diferentes por atleta, afetando velocidade, sprint, chute, passe e dividida
+- Visual 3D renovado com arena neon, telões, luzes, contorno estilizado, auras e campo mais detalhado
+- Jogadores com corpos, cabelos, números, chuteiras e proporções diferentes
 - Partida 4 contra 4 com adversários, companheiros e goleiros controlados pelo computador
 - Inteligência tática com funções, marcação, cobertura, apoio, passes e decisões sob pressão
 - Companheiros do time azul procuram tocar a bola para o jogador principal quando ele está livre

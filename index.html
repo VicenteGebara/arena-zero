@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#05080a">
-  <meta name="description" content="Arena Zero — protótipo de futebol arcade com controle individual.">
+  <meta name="description" content="Arena Zero — futebol arcade 3D com controle individual e escolha de atleta.">
   <title>Arena Zero</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=keepers4">
+  <link rel="stylesheet" href="styles.css?v=rematch1">
 </head>
 <body>
   <main>
@@ -28,9 +28,32 @@
       <div class="canvas-wrap">
         <canvas id="game" aria-label="Jogo Arena Zero em 3D"></canvas>
         <div class="start-screen" id="startScreen">
-          <p class="kicker">FUTEBOL ARCADE 4V4</p>
-          <h1>DOMINE A<br><em>ARENA.</em></h1>
-          <p>Você controla um jogador em terceira pessoa. Entre em campo e mova o mouse para controlar a câmera.</p>
+          <p class="kicker">FUTEBOL ARCADE 4V4 · VISUAL NEXT ARENA</p>
+          <h1>ESCOLHA SEU<br><em>ATLETA.</em></h1>
+          <p>Entre em campo com um jogador de estilo próprio. Cada atleta tem corpo, visual e sensação de jogo diferentes.</p>
+          <div class="player-picker" id="playerPicker" role="listbox" aria-label="Escolha seu jogador">
+            <button class="player-option selected" data-player="0" type="button" aria-selected="true">
+              <i class="avatar balanced"></i>
+              <span><b>Vicente</b><small>Equilíbrio / camisa 10</small></span>
+              <em>VEL 86 · CHU 88 · PAS 84</em>
+            </button>
+            <button class="player-option" data-player="1" type="button" aria-selected="false">
+              <i class="avatar speed"></i>
+              <span><b>Raio</b><small>Explosão e drible curto</small></span>
+              <em>VEL 96 · CHU 78 · PAS 76</em>
+            </button>
+            <button class="player-option" data-player="2" type="button" aria-selected="false">
+              <i class="avatar power"></i>
+              <span><b>Titã</b><small>Força, dividida e chute</small></span>
+              <em>VEL 78 · CHU 96 · DEF 91</em>
+            </button>
+            <button class="player-option" data-player="3" type="button" aria-selected="false">
+              <i class="avatar playmaker"></i>
+              <span><b>Maestro</b><small>Passe, controle e visão</small></span>
+              <em>VEL 82 · PAS 96 · CHU 84</em>
+            </button>
+          </div>
+          <div class="selected-athlete" id="selectedAthlete">Selecionado: Vicente · atleta equilibrado</div>
           <button id="startButton">ENTRAR EM CAMPO <span>→</span></button>
         </div>
         <div class="message" id="message"></div>
@@ -75,6 +98,6 @@
   </main>
   <footer><span>ARENA ZERO — EXPERIMENTO DE GAMEPLAY</span><span>FEITO PARA O NAVEGADOR</span></footer>
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="game.js?v=mobile1"></script>
+  <script src="game.js?v=rematch1"></script>
 </body>
 </html>
