@@ -8,6 +8,7 @@ Abra `index.html` em um navegador moderno.
 
 - `WASD`: movimento
 - `Shift`: sprint
+- Botão **CORRER +50%**: mantenha pressionado para correr
 - Movimento do mouse: girar a câmera durante a partida
 - `J` e `L`: girar a câmera pelo teclado
 - `I` e `K`: inclinar a câmera pelo teclado
