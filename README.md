@@ -9,6 +9,8 @@ Abra `index.html` em um navegador moderno.
 - `WASD`: movimento
 - `Shift`: sprint
 - Mouse: mirar
+- Botão direito + arrastar: girar a câmera
+- Rodinha do mouse: aproximar ou afastar a câmera
 - Segurar e soltar o clique: chute carregado
 - `Espaço`: passe direcionado
 - `E`: desarme com impulso
