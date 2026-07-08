@@ -198,7 +198,7 @@ class Player {
     const move=cameraForward().multiplyScalar(forwardInput).add(cameraRight().multiplyScalar(sideInput));
     const sprint=(keys.ShiftLeft||keys.ShiftRight)&&this.stamina>1&&move.lengthSq()>0, speed=sprint?19:12.5;
     if(move.lengthSq()){ move.normalize(); this.velocity.addScaledVector(move,speed*8*dt); }
-    if(this.speedTrail)this.speedTrail.children.forEach((streak,index)=>{streak.material.opacity=sprinting?.22-index*.045:0;});
+    if(this.speedTrail)this.speedTrail.children.forEach((streak,index)=>{streak.material.opacity=sprint?.22-index*.045:0;});
     this.stamina=clamp(this.stamina+(sprint?-28:18)*dt,0,100); ui.stamina.style.width=`${this.stamina}%`;
   }
   aiMove(dt){
