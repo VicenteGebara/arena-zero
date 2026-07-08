@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Arena Zero — protótipo de futebol arcade com controle individual.">
+  <title>Arena Zero</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <a class="logo" href="#">ARENA<span>ZERO</span></a>
+      <div class="status"><i></i> PROTÓTIPO JOGÁVEL</div>
+    </header>
+
+    <section class="game-shell">
+      <div class="scoreboard" aria-live="polite">
+        <div class="team cyan"><span>AZUL</span><strong id="blueScore">0</strong></div>
+        <div class="clock"><span>PARTIDA</span><strong id="clock">02:00</strong></div>
+        <div class="team coral"><strong id="redScore">0</strong><span>VERMELHO</span></div>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="game" aria-label="Jogo Arena Zero em 3D"></canvas>
+        <div class="start-screen" id="startScreen">
+          <p class="kicker">FUTEBOL ARCADE 3V3</p>
+          <h1>DOMINE A<br><em>ARENA.</em></h1>
+          <p>Você controla um jogador em terceira pessoa. Pense rápido, passe a bola e encontre o espaço.</p>
+          <button id="startButton">ENTRAR EM CAMPO <span>→</span></button>
+        </div>
+        <div class="message" id="message"></div>
+      </div>
+
+      <div class="hud">
+        <div class="controls">
+          <div><kbd>WASD</kbd><span>Mover</span></div>
+          <div><kbd>SHIFT</kbd><span>Sprint</span></div>
+          <div><kbd>MOUSE</kbd><span>Mirar / chutar</span></div>
+          <div><kbd>ESPAÇO</kbd><span>Passe</span></div>
+          <div><kbd>E</kbd><span>Desarme</span></div>
+        </div>
+        <div class="stamina"><span>ENERGIA</span><div><i id="staminaBar"></i></div></div>
+      </div>
+    </section>
+
+    <section class="mechanics">
+      <p class="section-tag">MECÂNICAS / 01</p>
+      <h2>Simples para jogar.<br><span>Difícil de dominar.</span></h2>
+      <div class="cards">
+        <article><b>01</b><h3>Controle individual</h3><p>Você é um atleta, não o time inteiro. Posicionamento e parceria importam.</p></article>
+        <article><b>02</b><h3>Chute carregado</h3><p>Segure o clique para ganhar potência. A precisão diminui no limite.</p></article>
+        <article><b>03</b><h3>Arena viva</h3><p>A bola nunca sai. Use as paredes e transforme rebotes em jogadas.</p></article>
+        <article><b>04</b><h3>Risco e energia</h3><p>Sprint e desarme gastam energia. Escolha o momento certo para acelerar.</p></article>
+      </div>
+    </section>
+  </main>
+  <footer><span>ARENA ZERO — EXPERIMENTO DE GAMEPLAY</span><span>FEITO PARA O NAVEGADOR</span></footer>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
