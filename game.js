@@ -196,7 +196,7 @@ class Player {
   userMove(dt){
     const forwardInput=(keys.KeyW?1:0)-(keys.KeyS?1:0), sideInput=(keys.KeyD?1:0)-(keys.KeyA?1:0);
     const move=cameraForward().multiplyScalar(forwardInput).add(cameraRight().multiplyScalar(sideInput));
-    const sprint=(keys.ShiftLeft||keys.ShiftRight)&&this.stamina>1&&move.lengthSq()>0, speed=sprint?19:12.5;
+    const sprint=(keys.ShiftLeft||keys.ShiftRight)&&this.stamina>1&&move.lengthSq()>0, speed=sprint?14:9.5;
     if(move.lengthSq()){ move.normalize(); this.velocity.addScaledVector(move,speed*8*dt); }
     if(this.speedTrail)this.speedTrail.children.forEach((streak,index)=>{streak.material.opacity=sprint?.22-index*.045:0;});
     this.stamina=clamp(this.stamina+(sprint?-28:18)*dt,0,100); ui.stamina.style.width=`${this.stamina}%`;
@@ -205,8 +205,8 @@ class Player {
     const attackZ=this.team==='blue'?-1:1, mates=players.filter(p=>p.team===this.team), nearest=[...mates].sort((a,b)=>flatDistance(a,ball)-flatDistance(b,ball))[0];
     let target=new THREE.Vector3(this.team==='blue'?(players.indexOf(this)%2?9:-9):(players.indexOf(this)%2?-9:9),0,attackZ*-5);
     if(nearest===this||flatDistance(this,ball)<10) target.copy(ball.position);
-    const dir=flatDirection(this.position,target); if(this.position.distanceTo(target)>.8)this.velocity.addScaledVector(dir,10.5*7*dt);
-    if(flatDistance(this,ball)<1.45&&this.cooldown<=0){ const goal=new THREE.Vector3((Math.random()-.5)*5,0,attackZ*FIELD.halfL); kickBall(this,flatDirection(ball.position,goal),.55+Math.random()*.25); this.cooldown=.75; }
+    const dir=flatDirection(this.position,target); if(this.position.distanceTo(target)>.8)this.velocity.addScaledVector(dir,8*7*dt);
+    if(flatDistance(this,ball)<1.45&&this.cooldown<=0){ const goal=new THREE.Vector3((Math.random()-.5)*5,0,attackZ*FIELD.halfL); kickBall(this,flatDirection(ball.position,goal),.55+Math.random()*.25,.08,true); this.cooldown=.75; }
   }
   touchBall(){ if(ball.owner&&ball.owner!==this&&this.tackle<=0)return; if(ball.velocity.length()<17||this.tackle>0)ball.owner=this; }
 }
@@ -233,10 +233,10 @@ function reset(){
   for(let i=0;i<trailCount;i++){trailArray[i*3]=0;trailArray[i*3+1]=.48;trailArray[i*3+2]=0;}trailGeometry.attributes.position.needsUpdate=true;
 }
 
-function kickBall(player,dir,power,lift=.08){
-  if(ball.owner!==player)return; ball.owner=null; const force=18+power*25; ball.velocity.set(dir.x*force,3+lift*force,dir.z*force); player.velocity.addScaledVector(dir,-2);cameraShake=Math.max(cameraShake,.07+power*.13);spawnKickBurst(ball.position,player.team);
+function kickBall(player,dir,power,lift=.08,isShot=false){
+  if(ball.owner!==player)return; ball.owner=null; const force=isShot?28+power*45:16+power*18; ball.velocity.set(dir.x*force,3+lift*force,dir.z*force); player.velocity.addScaledVector(dir,-2);cameraShake=Math.max(cameraShake,.07+power*.13);spawnKickBurst(ball.position,player.team);
 }
-function shoot(){ const user=players[0]; if(ball.owner!==user||kickoff>0)return; kickBall(user,flatDirection(ball.position,aimPoint),charge,.13); }
+function shoot(){ const user=players[0]; if(ball.owner!==user||kickoff>0)return; kickBall(user,flatDirection(ball.position,aimPoint),charge,.13,true); }
 function pass(){
   const user=players[0]; if(ball.owner!==user||kickoff>0)return; const mates=players.filter(p=>p.team==='blue'&&p!==user), aimDir=flatDirection(user.position,aimPoint);
   const target=[...mates].sort((a,b)=>flatDirection(user.position,b.position).dot(aimDir)-flatDirection(user.position,a.position).dot(aimDir))[0];
