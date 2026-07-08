@@ -38,6 +38,8 @@ let running = false, time = 120, blueScore = 0, redScore = 0, kickoff = 0, charg
 const clamp = THREE.MathUtils.clamp;
 const flatDistance = (a, b) => Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z);
 const flatDirection = (from, to) => new THREE.Vector3(to.x - from.x, 0, to.z - from.z).normalize();
+const cameraForward = () => new THREE.Vector3(-Math.sin(cameraOrbit.yaw), 0, -Math.cos(cameraOrbit.yaw));
+const cameraRight = () => new THREE.Vector3(Math.cos(cameraOrbit.yaw), 0, -Math.sin(cameraOrbit.yaw));
 
 function material(color, roughness = 0.72, metalness = 0.05) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -123,9 +125,7 @@ class Player {
   }
   userMove(dt){
     const forwardInput=(keys.KeyW?1:0)-(keys.KeyS?1:0), sideInput=(keys.KeyD?1:0)-(keys.KeyA?1:0);
-    const cameraForward=new THREE.Vector3(); camera.getWorldDirection(cameraForward); cameraForward.y=0; cameraForward.normalize();
-    const cameraRight=new THREE.Vector3().crossVectors(cameraForward,camera.up).normalize();
-    const move=cameraForward.multiplyScalar(forwardInput).add(cameraRight.multiplyScalar(sideInput));
+    const move=cameraForward().multiplyScalar(forwardInput).add(cameraRight().multiplyScalar(sideInput));
     const sprint=(keys.ShiftLeft||keys.ShiftRight)&&this.stamina>1&&move.lengthSq()>0, speed=sprint?19:12.5;
     if(move.lengthSq()){ move.normalize(); this.velocity.addScaledVector(move,speed*8*dt); }
     this.stamina=clamp(this.stamina+(sprint?-28:18)*dt,0,100); ui.stamina.style.width=`${this.stamina}%`;
@@ -167,7 +167,11 @@ function pass(){
   const target=[...mates].sort((a,b)=>flatDirection(user.position,b.position).dot(aimDir)-flatDirection(user.position,a.position).dot(aimDir))[0];
   const lead=target.position.clone().addScaledVector(target.velocity,.18); kickBall(user,flatDirection(ball.position,lead),.28,.03);
 }
-function tackle(){ const user=players[0]; if(user.stamina<20||user.cooldown>0)return; user.velocity.addScaledVector(flatDirection(user.position,aimPoint),25); user.tackle=.38; user.cooldown=.9; user.stamina-=20; }
+function tackle(){
+  const user=players[0]; if(user.stamina<20||user.cooldown>0)return;
+  const direction=user.velocity.lengthSq()>1?user.velocity.clone().setY(0).normalize():cameraForward();
+  user.velocity.addScaledVector(direction,25); user.tackle=.38; user.cooldown=.9; user.stamina-=20;
+}
 
 function updateAim(){
   raycaster.setFromCamera(pointer,camera); const ray=raycaster.ray, t=-ray.origin.y/ray.direction.y;
@@ -201,6 +205,10 @@ function endGame(){running=false;const result=blueScore===redScore?'EMPATE!':blu
 
 function updateCamera(dt){
   const user=players[0]; if(!user)return;
+  const horizontalInput=(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0);
+  const verticalInput=(keys.ArrowDown?1:0)-(keys.ArrowUp?1:0);
+  cameraOrbit.yaw-=horizontalInput*1.9*dt;
+  cameraOrbit.pitch=clamp(cameraOrbit.pitch+verticalInput*1.15*dt,.2,.82);
   const horizontal=Math.cos(cameraOrbit.pitch)*cameraOrbit.distance;
   const desired=new THREE.Vector3(
     user.position.x+Math.sin(cameraOrbit.yaw)*horizontal,
@@ -238,7 +246,7 @@ canvas.addEventListener('pointerdown',e=>{
 window.addEventListener('pointerup',e=>{if(e.button===0&&mouseDown){mouseDown=false;shoot();charge=0;}if(e.button===2)cameraOrbit.dragging=false;});
 canvas.addEventListener('wheel',e=>{e.preventDefault();cameraOrbit.distance=clamp(cameraOrbit.distance+e.deltaY*.012,9,23);},{passive:false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-window.addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','KeyE'].includes(e.code))e.preventDefault();if(e.code==='Space'&&!e.repeat)pass();if(e.code==='KeyE'&&!e.repeat)tackle();});
+window.addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(e.code==='Space'&&!e.repeat)pass();if(e.code==='KeyE'&&!e.repeat)tackle();});
 window.addEventListener('keyup',e=>{keys[e.code]=false;});
 document.getElementById('startButton').addEventListener('click',()=>{blueScore=redScore=0;time=120;ui.blue.textContent=ui.red.textContent='0';reset();running=true;ui.start.classList.add('hidden');});
 
