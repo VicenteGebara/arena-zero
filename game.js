@@ -102,7 +102,7 @@ function toggleCameraMode(){
 const audio = {
   ctx:null, master:null, compressor:null, crowdGain:null, crowdFilter:null, crowdSource:null, rumble:null, rumbleGain:null,
   chantGain:null, fxGain:null, noiseBurstBuffer:null, enabled:false, lastSpeech:0, voice:null,
-  crowdIntensity:.32, chantTimer:.4, clapTimer:.35, shoutTimer:.65, chantIndex:0
+  currentSpeechPriority:0, lastSpeechType:'', speechId:0, crowdIntensity:.32, chantTimer:.4, clapTimer:.35, shoutTimer:.65, chantIndex:0
 };
 
 function initAudio(){
@@ -146,15 +146,19 @@ function chooseNarratorVoice(){
 }
 window.speechSynthesis?.addEventListener?.('voiceschanged',chooseNarratorVoice);
 
-function narrate(text, urgent=false, minGap=2300){
+function narrate(text, urgent=false, minGap=2300, priority=1, type='normal'){
   if(!running&&!urgent)return;
   const now=performance.now();
   if(!urgent&&now-audio.lastSpeech<minGap)return;
-  audio.lastSpeech=now;
   if(window.speechSynthesis){
-    if(urgent)window.speechSynthesis.cancel();
+    const busy=window.speechSynthesis.speaking||window.speechSynthesis.pending;
+    if(busy&&priority<=1)return;
+    if(busy&&(urgent||priority>=3||priority>audio.currentSpeechPriority))window.speechSynthesis.cancel();
+    else if(busy)return;
+    audio.lastSpeech=now;audio.currentSpeechPriority=priority;audio.lastSpeechType=type;const speechId=++audio.speechId;
     const utter=new SpeechSynthesisUtterance(text);
-    utter.lang='pt-BR'; utter.rate=urgent?1.08:1.02+Math.random()*.05; utter.pitch=urgent?1.09:1.01+Math.random()*.08; utter.volume=.92;
+    utter.lang='pt-BR'; utter.rate=urgent?1.16:1.08+Math.random()*.05; utter.pitch=urgent?1.09:1.01+Math.random()*.08; utter.volume=.92;
+    utter.onend=utter.onerror=()=>{if(audio.speechId===speechId)audio.currentSpeechPriority=0;};
     if(audio.voice)utter.voice=audio.voice;
     window.speechSynthesis.speak(utter);
   }
@@ -184,6 +188,8 @@ function attackingGoalDistance(player){
 }
 function narrateEvent(type, data={}, urgent=false, minGap=2300){
   const player=data.player, name=playerName(player), strong=data.power>.78, veryStrong=data.power>.98, danger=player&&attackingGoalDistance(player)<28;
+  const priorityByType={possession:1,dribble:2,pass:2,keeper:2,danger:3,shot:4,goal:5,kickoff:5};
+  const priority=priorityByType[type]||1;
   let line='';
   if(type==='kickoff')line=pick([
     'Som na caixa, torcida acordada, a bola vai rolar na Arena Zero!',
@@ -249,14 +255,14 @@ function narrateEvent(type, data={}, urgent=false, minGap=2300){
     `Bola na rede do vermelho! Jogada rápida e conclusão forte.`,
     `Sai o gol vermelho! Agora é respirar e voltar para o jogo.`
   ]);
-  if(line)narrate(line, urgent, minGap);
+  if(line)narrate(line, urgent, minGap, priority, type);
 }
 
 function announcePossession(){
   if(!running||!ball.owner)return;
   if(ball.owner!==lastOwnerNarrated){
     lastOwnerNarrated=ball.owner;
-    narrateEvent('possession', {player:ball.owner}, false, 1800);
+    narrateEvent('possession', {player:ball.owner}, false, ball.owner.user?2300:3100);
   }
 }
 
