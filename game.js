@@ -101,7 +101,8 @@ function toggleCameraMode(){
 
 const audio = {
   ctx:null, master:null, crowdGain:null, crowdFilter:null, crowdSource:null, rumble:null, rumbleGain:null,
-  enabled:false, lastSpeech:0, voice:null
+  chantGain:null, fxGain:null, noiseBurstBuffer:null, enabled:false, lastSpeech:0, voice:null,
+  crowdIntensity:.12, chantTimer:1.2, clapTimer:.7, shoutTimer:1.8, chantIndex:0
 };
 
 function initAudio(){
@@ -110,22 +111,29 @@ function initAudio(){
   if(!AudioContext)return;
   audio.ctx=audio.ctx||new AudioContext();
   if(audio.ctx.state==='suspended')audio.ctx.resume?.();
-  audio.master=audio.ctx.createGain();audio.master.gain.value=.72;audio.master.connect(audio.ctx.destination);
+  audio.master=audio.ctx.createGain();audio.master.gain.value=.74;audio.master.connect(audio.ctx.destination);
   const duration=2.2, length=Math.floor(audio.ctx.sampleRate*duration), buffer=audio.ctx.createBuffer(1,length,audio.ctx.sampleRate), data=buffer.getChannelData(0);
   for(let i=0;i<length;i++){
-    const wave=Math.sin(i*.011)*.08+Math.sin(i*.027)*.05;
-    data[i]=(Math.random()*2-1)*.26+wave;
+    const wave=Math.sin(i*.011)*.05+Math.sin(i*.027)*.035+Math.sin(i*.004)*.06;
+    data[i]=(Math.random()*2-1)*.16+wave;
   }
+  const burstLength=Math.floor(audio.ctx.sampleRate*1.1);
+  audio.noiseBurstBuffer=audio.ctx.createBuffer(1,burstLength,audio.ctx.sampleRate);
+  const burst=audio.noiseBurstBuffer.getChannelData(0);
+  for(let i=0;i<burstLength;i++)burst[i]=(Math.random()*2-1)*(1-i/burstLength);
   audio.crowdSource=audio.ctx.createBufferSource();audio.crowdSource.buffer=buffer;audio.crowdSource.loop=true;
-  audio.crowdFilter=audio.ctx.createBiquadFilter();audio.crowdFilter.type='bandpass';audio.crowdFilter.frequency.value=720;audio.crowdFilter.Q.value=.75;
-  audio.crowdGain=audio.ctx.createGain();audio.crowdGain.gain.value=.025;
+  audio.crowdFilter=audio.ctx.createBiquadFilter();audio.crowdFilter.type='bandpass';audio.crowdFilter.frequency.value=620;audio.crowdFilter.Q.value=.62;
+  audio.crowdGain=audio.ctx.createGain();audio.crowdGain.gain.value=.018;
   audio.crowdSource.connect(audio.crowdFilter);audio.crowdFilter.connect(audio.crowdGain);audio.crowdGain.connect(audio.master);audio.crowdSource.start();
+  audio.chantGain=audio.ctx.createGain();audio.chantGain.gain.value=.58;audio.chantGain.connect(audio.master);
+  audio.fxGain=audio.ctx.createGain();audio.fxGain.gain.value=.62;audio.fxGain.connect(audio.master);
   audio.rumble=audio.ctx.createOscillator();audio.rumble.type='sawtooth';audio.rumble.frequency.value=82;
   audio.rumbleGain=audio.ctx.createGain();audio.rumbleGain.gain.value=.006;
   audio.rumble.connect(audio.rumbleGain);audio.rumbleGain.connect(audio.master);audio.rumble.start();
   audio.enabled=true;
   chooseNarratorVoice();
-  narrate('Narrador ligado. A bola vai rolar na Arena Zero!', true);
+  triggerCrowdReaction('kickoff', .6);
+  narrateEvent('kickoff', {}, true, 0);
 }
 
 function chooseNarratorVoice(){
@@ -143,7 +151,7 @@ function narrate(text, urgent=false, minGap=2300){
   if(window.speechSynthesis){
     if(urgent)window.speechSynthesis.cancel();
     const utter=new SpeechSynthesisUtterance(text);
-    utter.lang='pt-BR'; utter.rate=1.12; utter.pitch=1.06; utter.volume=.9;
+    utter.lang='pt-BR'; utter.rate=urgent?1.08:1.02+Math.random()*.05; utter.pitch=urgent?1.09:1.01+Math.random()*.08; utter.volume=.92;
     if(audio.voice)utter.voice=audio.voice;
     window.speechSynthesis.speak(utter);
   }
@@ -164,27 +172,192 @@ function playerName(player){
   return `${player.profile?.name||'jogador'} ${side}`;
 }
 
+function pick(list){return list[Math.floor(Math.random()*list.length)];}
+function scorePhrase(){return blueScore===redScore?`${blueScore} a ${redScore}, tudo igual`:`${blueScore} a ${redScore}`;}
+function attackingGoalDistance(player){
+  if(!player)return 99;
+  const attackZ=player.team==='blue'?-FIELD.halfL:FIELD.halfL;
+  return Math.abs(player.position.z-attackZ);
+}
+function narrateEvent(type, data={}, urgent=false, minGap=2300){
+  const player=data.player, name=playerName(player), strong=data.power>.78, veryStrong=data.power>.98, danger=player&&attackingGoalDistance(player)<28;
+  let line='';
+  if(type==='kickoff')line=pick([
+    'Som na caixa, torcida acordada, a bola vai rolar na Arena Zero!',
+    'Tudo pronto! Jogadores posicionados, e o estádio já empurra o jogo.',
+    'Começa a partida! O clima está quente e a torcida quer espetáculo.'
+  ]);
+  if(type==='possession')line=player?.user?pick([
+    `${name} domina, levanta a cabeça e procura a jogada.`,
+    `${name} fica com ela. Tem espaço para pensar.`,
+    `${name} pega na bola e chama a responsabilidade.`
+  ]):pick([
+    `${name} controla a posse e organiza o ataque.`,
+    `${name} recebe, ajeita o corpo e olha para frente.`,
+    `${name} fica com a bola, tentando acelerar a jogada.`
+  ]);
+  if(type==='shot')line=player?.user?pick([
+    veryStrong?`${name} soltou uma bomba! A bola saiu viva!`:`${name} bateu para o gol!`,
+    danger?`Olha o ${name}! Chute perigoso, a torcida levantou!`:`${name} arriscou de fora, pegou firme na bola.`,
+    `${name} finaliza! Vamos ver o que acontece!`
+  ]):pick([
+    veryStrong?`${name} encheu o pé, que pancada!`:`${name} chutou para o gol.`,
+    danger?`${name} apareceu na área e finalizou!`:`${name} tentou surpreender no chute.`,
+    `${name} bateu buscando o canto.`
+  ]);
+  if(type==='pass')line=player?.user?pick([
+    strong?`${name} carregou o passe e virou o jogo com força.`:`${name} toca e se movimenta para receber de volta.`,
+    strong?`Passe forte do ${name}, tentando quebrar a linha.`:`Boa bola do ${name}, simples e rápido.`,
+    `${name} escolhe o passe e acelera a construção.`
+  ]):pick([
+    strong?`${name} estica o passe, procurando o companheiro em velocidade.`:`${name} toca curto para manter a posse.`,
+    `${name} solta a bola antes da pressão chegar.`,
+    `${name} acha uma opção e faz a bola correr.`
+  ]);
+  if(type==='keeper')line=pick([
+    `${name} repõe rápido e chama o time para sair jogando.`,
+    `${name} segurou a pressão e devolveu a bola para o campo.`,
+    `${name} faz a reposição, jogo seguindo.`
+  ]);
+  if(type==='dribble')line=player?.user?pick([
+    `${name} chama a marcação para dançar e tenta passar no drible.`,
+    `${name} prende, gira o corpo e acelera com a bola.`,
+    `${name} vai conduzindo, do jeitinho de quem quer decidir.`
+  ]):pick([
+    data.pressure?`${name} protege a bola e tenta escapar da marcação.`:`${name} conduz com calma, esperando a abertura.`,
+    `${name} segura a posse e procura o melhor caminho.`,
+    `${name} prefere carregar antes de soltar o passe.`
+  ]);
+  if(type==='danger')line=ball.owner?.user?pick([
+    `${playerName(ball.owner)} chegou perto do gol! O estádio sentiu o perigo.`,
+    `Atenção, ${playerName(ball.owner)} vem chegando! A torcida aumentou o volume.`,
+    `Pode pintar chance boa! ${playerName(ball.owner)} está na zona quente.`
+  ]):pick([
+    'Olha o perigo perto da área! A torcida percebeu a chance.',
+    'A bola está rondando o gol, momento de tensão no estádio.',
+    'Chegada perigosa! Todo mundo ficou de pé agora.'
+  ]);
+  if(type==='goal')line=data.team==='blue'?pick([
+    `É goool do time azul! A Arena Zero explode, placar agora ${scorePhrase()}!`,
+    `Bola na rede! O time azul marca e a torcida vai junto!`,
+    `Golaço do azul! Finalização certeira, sem chance!`
+  ]):pick([
+    `Gol do time vermelho! O estádio sente o golpe e o jogo pega fogo.`,
+    `Bola na rede do vermelho! Jogada rápida e conclusão forte.`,
+    `Sai o gol vermelho! Agora é respirar e voltar para o jogo.`
+  ]);
+  if(line)narrate(line, urgent, minGap);
+}
+
 function announcePossession(){
   if(!running||!ball.owner)return;
   if(ball.owner!==lastOwnerNarrated){
     lastOwnerNarrated=ball.owner;
-    narrate(`${playerName(ball.owner)} está com a bola.`, false, 1700);
+    narrateEvent('possession', {player:ball.owner}, false, 1800);
   }
+}
+
+function playCrowdVoice(freq,start,duration,volume,formant=760,bend=0){
+  if(!audio.enabled||!audio.ctx)return;
+  const osc=audio.ctx.createOscillator(), filter=audio.ctx.createBiquadFilter(), gain=audio.ctx.createGain();
+  osc.type='sawtooth';filter.type='bandpass';filter.frequency.setValueAtTime(formant,start);filter.Q.value=3.6+Math.random()*1.8;
+  osc.frequency.setValueAtTime(freq,start);
+  osc.frequency.linearRampToValueAtTime(freq*(1+bend),start+duration*.78);
+  gain.gain.setValueAtTime(.001,start);
+  gain.gain.linearRampToValueAtTime(volume,start+.05);
+  gain.gain.setTargetAtTime(volume*.82,start+duration*.32,duration*.35);
+  gain.gain.exponentialRampToValueAtTime(.001,start+duration);
+  osc.connect(filter);filter.connect(gain);gain.connect(audio.chantGain||audio.master);osc.start(start);osc.stop(start+duration+.05);
+}
+
+function playNoiseHit(start,duration,volume,mode='clap'){
+  if(!audio.enabled||!audio.ctx||!audio.noiseBurstBuffer)return;
+  const source=audio.ctx.createBufferSource(), filter=audio.ctx.createBiquadFilter(), gain=audio.ctx.createGain();
+  source.buffer=audio.noiseBurstBuffer;source.playbackRate.value=mode==='clap'?2.6+Math.random()*1.8:1.1+Math.random()*.9;
+  filter.type=mode==='clap'?'highpass':'bandpass';
+  filter.frequency.value=mode==='clap'?1200+Math.random()*1200:700+Math.random()*900;
+  filter.Q.value=mode==='clap' ? .7 : 1.8;
+  gain.gain.setValueAtTime(.001,start);
+  gain.gain.linearRampToValueAtTime(volume,start+.01);
+  gain.gain.exponentialRampToValueAtTime(.001,start+duration);
+  source.connect(filter);filter.connect(gain);gain.connect(audio.fxGain||audio.master);
+  source.start(start,Math.random()*.4,duration+.02);
+}
+
+function playClapBurst(count=4,intensity=.5){
+  if(!audio.enabled||!audio.ctx)return;
+  const now=audio.ctx.currentTime;
+  for(let i=0;i<count;i++)playNoiseHit(now+i*(.055+Math.random()*.055)+Math.random()*.06,.07+Math.random()*.035,.018+intensity*.03,'clap');
+}
+
+function playWhistle(intensity=.6){
+  if(!audio.enabled||!audio.ctx)return;
+  const now=audio.ctx.currentTime, osc=audio.ctx.createOscillator(), gain=audio.ctx.createGain();
+  osc.type='sine';osc.frequency.setValueAtTime(1450+Math.random()*500,now);osc.frequency.linearRampToValueAtTime(2100+Math.random()*700,now+.18);
+  gain.gain.setValueAtTime(.001,now);gain.gain.linearRampToValueAtTime(.018+intensity*.024,now+.035);gain.gain.exponentialRampToValueAtTime(.001,now+.38);
+  osc.connect(gain);gain.connect(audio.fxGain||audio.master);osc.start(now);osc.stop(now+.42);
+}
+
+function playCrowdShout(kind='normal',intensity=.45){
+  if(!audio.enabled||!audio.ctx)return;
+  const now=audio.ctx.currentTime;
+  const count=kind==='goal'?18:kind==='shot'?11:Math.floor(5+intensity*8);
+  for(let i=0;i<count;i++){
+    const start=now+Math.random()*(kind==='goal' ? .85 : .38), duration=(kind==='goal' ? .42 : .24)+Math.random()*(kind==='goal' ? .62 : .32);
+    const freq=115+Math.random()*150, formant=kind==='goal'?620+Math.random()*920:720+Math.random()*820;
+    playCrowdVoice(freq,start,duration,.008+intensity*.014,formant,(Math.random()-.45)*.22);
+  }
+  if(kind==='shot'||kind==='goal')playNoiseHit(now+.06,.22,.035+intensity*.035,'roar');
+  if(kind==='goal')playNoiseHit(now+.32,.65,.08,'roar');
+}
+
+function playCrowdChant(intensity=.45){
+  if(!audio.enabled||!audio.ctx)return;
+  const now=audio.ctx.currentTime, patterns=[[0,.34,.68,1.08],[0,.28,.56,.98,1.24],[0,.42,.84]];
+  const pattern=patterns[audio.chantIndex++%patterns.length], voices=Math.floor(5+intensity*7);
+  for(let v=0;v<voices;v++){
+    const base=105+Math.random()*125, offset=Math.random()*.09, formant=560+Math.random()*520;
+    pattern.forEach((beat,i)=>playCrowdVoice(base*(1+Math.random()*.08),now+beat+offset,.22+Math.random()*.18,.006+intensity*.01,formant+i*70,(Math.random()-.5)*.1));
+  }
+}
+
+function triggerCrowdReaction(kind='normal',intensity=.5){
+  if(!audio.enabled||!audio.ctx)return;
+  if(kind==='goal'){
+    playCrowdShout('goal',1);playClapBurst(24,1);playWhistle(.95);setTimeout(()=>playCrowdChant(.92),280);
+    return;
+  }
+  if(kind==='shot'){playCrowdShout('shot',intensity);playClapBurst(8,intensity);if(intensity>.75)playWhistle(intensity);return;}
+  if(kind==='danger'){playCrowdShout('danger',intensity);playClapBurst(5,intensity);return;}
+  if(kind==='kickoff'){playCrowdChant(intensity);playClapBurst(10,intensity);return;}
+  if(kind==='pass'){if(Math.random()<.55)playClapBurst(3,intensity*.55);return;}
+  playCrowdShout('normal',intensity);
 }
 
 function updateCrowdAudio(dt){
   if(!audio.enabled||!audio.ctx||!audio.crowdGain)return;
   const goalProximity=clamp((Math.abs(ball.position.z)-(FIELD.halfL-36))/36,0,1);
-  const velocityBoost=clamp(ball.velocity.length()/70,0,.35);
-  const ownerBoost=ball.owner?.user ? .025 : 0;
-  const target=(running ? .035 : .018)+Math.pow(goalProximity,1.55)*.24+velocityBoost+goalGlow*.2+ownerBoost;
+  const velocityBoost=clamp(ball.velocity.length()/80,0,.45);
+  const ownerBoost=ball.owner?.user ? .08 : 0;
+  const targetIntensity=clamp((running ? .2 : .06)+Math.pow(goalProximity,1.45)*.55+velocityBoost*.32+goalGlow*.75+ownerBoost,0,1);
+  audio.crowdIntensity+= (targetIntensity-audio.crowdIntensity)*(1-Math.pow(.03,dt));
+  const target=.014+audio.crowdIntensity*.12+goalGlow*.08;
   const now=audio.ctx.currentTime;
   audio.crowdGain.gain.setTargetAtTime(target,now,.28);
-  audio.crowdFilter.frequency.setTargetAtTime(620+goalProximity*850+velocityBoost*500,now,.35);
-  audio.rumbleGain?.gain.setTargetAtTime(.004+goalProximity*.018,now,.4);
+  audio.crowdFilter.frequency.setTargetAtTime(560+goalProximity*820+velocityBoost*420,now,.35);
+  audio.rumbleGain?.gain.setTargetAtTime(.003+audio.crowdIntensity*.018,now,.4);
+  if(running){
+    audio.chantTimer-=dt*(.65+audio.crowdIntensity*.55);
+    audio.clapTimer-=dt*(.9+audio.crowdIntensity*.9);
+    audio.shoutTimer-=dt*(.7+audio.crowdIntensity*.75);
+    if(audio.chantTimer<=0){playCrowdChant(audio.crowdIntensity);audio.chantTimer=3.2+Math.random()*2.4-audio.crowdIntensity*1.25;}
+    if(audio.clapTimer<=0){playClapBurst(2+Math.floor(audio.crowdIntensity*5),audio.crowdIntensity);audio.clapTimer=.95+Math.random()*1.25-audio.crowdIntensity*.42;}
+    if(audio.shoutTimer<=0){playCrowdShout('normal',audio.crowdIntensity);audio.shoutTimer=1.55+Math.random()*2.2-audio.crowdIntensity*.7;}
+  }
   if(running&&goalProximity>.72&&performance.now()-lastGoalPressureNarration>7000){
     lastGoalPressureNarration=performance.now();
-    narrate(ball.owner?`${playerName(ball.owner)} chega perto do gol!`:'Perigo perto da área!', false, 3200);
+    triggerCrowdReaction('danger', audio.crowdIntensity);
+    narrateEvent('danger', {}, false, 3200);
   }
 }
 
@@ -558,7 +731,7 @@ class Player {
     if(pressure&&pressureDistance<7){const evade=flatDirection(pressure.position,this.position);dribbleTarget.x=clamp(this.position.x+evade.x*9,-FIELD.halfW+4,FIELD.halfW-4);dribbleTarget.z=this.position.z+attackZ*13;}
     if(performance.now()-lastDribbleNarration>5200&&flatDistance(this,ball)<2.2){
       lastDribbleNarration=performance.now();
-      narrate(pressure&&pressureDistance<7?`${playerName(this)} escolheu driblar a marcação.`:`${playerName(this)} conduz e espera a jogada.`, false, 2600);
+      narrateEvent('dribble', {player:this, pressure:pressure&&pressureDistance<7}, false, 2600);
     }
     this.ballDirection.copy(flatDirection(this.position,dribbleTarget));
     this.moveTactically(dribbleTarget,pressureDistance<4?this.baseSpeed*.96:this.baseSpeed*.88,dt,mates);
@@ -618,9 +791,9 @@ function kickBall(player,dir,power,lift=.08,isShot=false){
   if(player.goalkeeper){ball.position.addScaledVector(dir,1.7);ball.position.y=.6;player.releaseLock=.45;}
   const force=isShot?36+power*60:16+power*18; ball.velocity.set(dir.x*force,3+lift*force,dir.z*force); player.velocity.addScaledVector(dir,-2);cameraShake=Math.max(cameraShake,.08+power*.16);spawnKickBurst(ball.position,player.team);
   lastOwnerNarrated=null;
-  if(isShot){playTone(220+power*170,.14,'square',.075);narrate(`${playerName(player)} chutou!`, player.user, player.user?900:1700);}
-  else if(player.goalkeeper){playTone(160,.12,'sawtooth',.05);narrate(`${playerName(player)} repõe a bola em jogo.`, false, 2300);}
-  else {playTone(360+power*80,.08,'triangle',.045);narrate(`${playerName(player)} tocou a bola.`, false, 1800);}
+  if(isShot){playTone(220+power*170,.14,'square',.075);triggerCrowdReaction('shot',clamp(power,.45,1));narrateEvent('shot',{player,power}, player.user, player.user?900:1600);}
+  else if(player.goalkeeper){playTone(160,.12,'sawtooth',.05);triggerCrowdReaction('pass',.45);narrateEvent('keeper',{player}, false, 2300);}
+  else {playTone(360+power*80,.08,'triangle',.045);triggerCrowdReaction('pass',clamp(power,.25,.85));narrateEvent('pass',{player,power}, false, player.user?1200:1800);}
 }
 function shoot(){ const user=userPlayer(); if(ball.owner!==user||kickoff>0)return; kickBall(user,flatDirection(ball.position,aimPoint),clamp(charge*user.shotPower+.03,0,1.25),.13,true); }
 function pass(power = .22){
@@ -683,7 +856,7 @@ function updateBall(dt){
 function resolvePlayers(){
   for(let i=0;i<players.length;i++)for(let j=i+1;j<players.length;j++){ const a=players[i],b=players[j],dx=b.position.x-a.position.x,dz=b.position.z-a.position.z,d=Math.hypot(dx,dz); if(d<1.25&&d>0){const push=(1.25-d)/2;a.position.x-=dx/d*push;a.position.z-=dz/d*push;b.position.x+=dx/d*push;b.position.z+=dz/d*push;} }
 }
-function goal(team){ if(kickoff>0)return; team==='blue'?blueScore++:redScore++; ui.blue.textContent=blueScore;ui.red.textContent=redScore;spawnGoalCelebration(team);playTone(540,.32,'sawtooth',.12);narrate(team==='blue'?'Golaço do time azul!':'Gol do time vermelho!',true);flash(team==='blue'?'GOLAÇO!':'GOL DELES!',team==='blue'?'#37e5e2':'#ff5c4d');reset(); }
+function goal(team){ if(kickoff>0)return; team==='blue'?blueScore++:redScore++; ui.blue.textContent=blueScore;ui.red.textContent=redScore;spawnGoalCelebration(team);playTone(540,.32,'sawtooth',.12);triggerCrowdReaction('goal',1);narrateEvent('goal',{team},true,0);flash(team==='blue'?'GOLAÇO!':'GOL DELES!',team==='blue'?'#37e5e2':'#ff5c4d');reset(); }
 function flash(text,color='#fff'){ui.message.textContent=text;ui.message.style.color=color;ui.message.classList.add('show');setTimeout(()=>ui.message.classList.remove('show'),1000);}
 function endGame(){running=false;document.exitPointerLock?.();const result=blueScore===redScore?'EMPATE!':blueScore>redScore?'VITÓRIA!':'DERROTA';flash(result,blueScore>=redScore?'#eaff65':'#ff5c4d');setTimeout(()=>{ui.start.querySelector('h1').innerHTML=`${result}<br><em>${blueScore} × ${redScore}</em>`;ui.start.querySelector('button').innerHTML='JOGAR DE NOVO <span>→</span>';ui.start.classList.remove('hidden');},1200);}
 
@@ -720,7 +893,7 @@ function update(dt){
   announcePossession();
   if(ball.owner?.user&&ball.owner.velocity.length()>5&&performance.now()-lastDribbleNarration>5200){
     lastDribbleNarration=performance.now();
-    narrate(`${playerName(ball.owner)} escolheu driblar e acelerar.`, false, 2600);
+    narrateEvent('dribble', {player:ball.owner, pressure:false}, false, 2600);
   }
   const mins=Math.floor(time/60),secs=Math.floor(time%60);ui.clock.textContent=`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;if(time<=0)endGame();
 }

@@ -33,8 +33,8 @@ Abra `index.html` em um navegador moderno.
 - Campo com dimensões duplicadas em largura e comprimento
 - Controle de um único atleta
 - Duas câmeras: terceira pessoa e câmera TV alta/lateral
-- Narrador por voz com posse, passe, chute, drible, perigo e gol
-- Som de torcida gerado no navegador, ficando mais alto perto dos gols
+- Narrador por voz com frases mais variadas para posse, passe, chute forte, drible, perigo, goleiro e gol
+- Torcida gerada no navegador com base de estádio, cantos, gritos, palmas, assobios e reações mais fortes perto dos gols
 - Sprint limitado por energia
 - Chute carregado com direção livre
 - Passe assistido para companheiros com força carregada no `Espaço`
