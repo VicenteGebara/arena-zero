@@ -34,7 +34,7 @@ Abra `index.html` em um navegador moderno.
 - Controle de um único atleta
 - Duas câmeras: terceira pessoa e câmera TV alta/lateral
 - Narrador por voz com frases mais variadas para posse, passe, chute forte, drible, perigo, goleiro e gol
-- Torcida gerada no navegador com base de estádio, cantos, gritos, palmas, assobios e reações mais fortes perto dos gols
+- Torcida gerada no navegador com base de estádio mais alta, cantos, gritos, palmas, assobios e reações mais fortes perto dos gols
 - Sprint limitado por energia
 - Chute carregado com direção livre
 - Passe assistido para companheiros com força carregada no `Espaço`

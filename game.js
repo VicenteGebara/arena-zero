@@ -100,9 +100,9 @@ function toggleCameraMode(){
 }
 
 const audio = {
-  ctx:null, master:null, crowdGain:null, crowdFilter:null, crowdSource:null, rumble:null, rumbleGain:null,
+  ctx:null, master:null, compressor:null, crowdGain:null, crowdFilter:null, crowdSource:null, rumble:null, rumbleGain:null,
   chantGain:null, fxGain:null, noiseBurstBuffer:null, enabled:false, lastSpeech:0, voice:null,
-  crowdIntensity:.12, chantTimer:1.2, clapTimer:.7, shoutTimer:1.8, chantIndex:0
+  crowdIntensity:.32, chantTimer:.4, clapTimer:.35, shoutTimer:.65, chantIndex:0
 };
 
 function initAudio(){
@@ -111,11 +111,14 @@ function initAudio(){
   if(!AudioContext)return;
   audio.ctx=audio.ctx||new AudioContext();
   if(audio.ctx.state==='suspended')audio.ctx.resume?.();
-  audio.master=audio.ctx.createGain();audio.master.gain.value=.74;audio.master.connect(audio.ctx.destination);
+  audio.master=audio.ctx.createGain();audio.master.gain.value=.92;
+  audio.compressor=audio.ctx.createDynamicsCompressor();
+  audio.compressor.threshold.value=-18;audio.compressor.knee.value=22;audio.compressor.ratio.value=5;audio.compressor.attack.value=.006;audio.compressor.release.value=.2;
+  audio.master.connect(audio.compressor);audio.compressor.connect(audio.ctx.destination);
   const duration=2.2, length=Math.floor(audio.ctx.sampleRate*duration), buffer=audio.ctx.createBuffer(1,length,audio.ctx.sampleRate), data=buffer.getChannelData(0);
   for(let i=0;i<length;i++){
-    const wave=Math.sin(i*.011)*.05+Math.sin(i*.027)*.035+Math.sin(i*.004)*.06;
-    data[i]=(Math.random()*2-1)*.16+wave;
+    const wave=Math.sin(i*.011)*.08+Math.sin(i*.027)*.06+Math.sin(i*.004)*.09;
+    data[i]=(Math.random()*2-1)*.26+wave;
   }
   const burstLength=Math.floor(audio.ctx.sampleRate*1.1);
   audio.noiseBurstBuffer=audio.ctx.createBuffer(1,burstLength,audio.ctx.sampleRate);
@@ -123,16 +126,16 @@ function initAudio(){
   for(let i=0;i<burstLength;i++)burst[i]=(Math.random()*2-1)*(1-i/burstLength);
   audio.crowdSource=audio.ctx.createBufferSource();audio.crowdSource.buffer=buffer;audio.crowdSource.loop=true;
   audio.crowdFilter=audio.ctx.createBiquadFilter();audio.crowdFilter.type='bandpass';audio.crowdFilter.frequency.value=620;audio.crowdFilter.Q.value=.62;
-  audio.crowdGain=audio.ctx.createGain();audio.crowdGain.gain.value=.018;
+  audio.crowdGain=audio.ctx.createGain();audio.crowdGain.gain.value=.075;
   audio.crowdSource.connect(audio.crowdFilter);audio.crowdFilter.connect(audio.crowdGain);audio.crowdGain.connect(audio.master);audio.crowdSource.start();
-  audio.chantGain=audio.ctx.createGain();audio.chantGain.gain.value=.58;audio.chantGain.connect(audio.master);
-  audio.fxGain=audio.ctx.createGain();audio.fxGain.gain.value=.62;audio.fxGain.connect(audio.master);
+  audio.chantGain=audio.ctx.createGain();audio.chantGain.gain.value=1.65;audio.chantGain.connect(audio.master);
+  audio.fxGain=audio.ctx.createGain();audio.fxGain.gain.value=1.45;audio.fxGain.connect(audio.master);
   audio.rumble=audio.ctx.createOscillator();audio.rumble.type='sawtooth';audio.rumble.frequency.value=82;
-  audio.rumbleGain=audio.ctx.createGain();audio.rumbleGain.gain.value=.006;
+  audio.rumbleGain=audio.ctx.createGain();audio.rumbleGain.gain.value=.013;
   audio.rumble.connect(audio.rumbleGain);audio.rumbleGain.connect(audio.master);audio.rumble.start();
   audio.enabled=true;
   chooseNarratorVoice();
-  triggerCrowdReaction('kickoff', .6);
+  triggerCrowdReaction('kickoff', .95);
   narrateEvent('kickoff', {}, true, 0);
 }
 
@@ -287,14 +290,14 @@ function playNoiseHit(start,duration,volume,mode='clap'){
 function playClapBurst(count=4,intensity=.5){
   if(!audio.enabled||!audio.ctx)return;
   const now=audio.ctx.currentTime;
-  for(let i=0;i<count;i++)playNoiseHit(now+i*(.055+Math.random()*.055)+Math.random()*.06,.07+Math.random()*.035,.018+intensity*.03,'clap');
+  for(let i=0;i<count;i++)playNoiseHit(now+i*(.055+Math.random()*.055)+Math.random()*.06,.08+Math.random()*.04,.04+intensity*.065,'clap');
 }
 
 function playWhistle(intensity=.6){
   if(!audio.enabled||!audio.ctx)return;
   const now=audio.ctx.currentTime, osc=audio.ctx.createOscillator(), gain=audio.ctx.createGain();
   osc.type='sine';osc.frequency.setValueAtTime(1450+Math.random()*500,now);osc.frequency.linearRampToValueAtTime(2100+Math.random()*700,now+.18);
-  gain.gain.setValueAtTime(.001,now);gain.gain.linearRampToValueAtTime(.018+intensity*.024,now+.035);gain.gain.exponentialRampToValueAtTime(.001,now+.38);
+  gain.gain.setValueAtTime(.001,now);gain.gain.linearRampToValueAtTime(.035+intensity*.05,now+.035);gain.gain.exponentialRampToValueAtTime(.001,now+.38);
   osc.connect(gain);gain.connect(audio.fxGain||audio.master);osc.start(now);osc.stop(now+.42);
 }
 
@@ -305,19 +308,19 @@ function playCrowdShout(kind='normal',intensity=.45){
   for(let i=0;i<count;i++){
     const start=now+Math.random()*(kind==='goal' ? .85 : .38), duration=(kind==='goal' ? .42 : .24)+Math.random()*(kind==='goal' ? .62 : .32);
     const freq=115+Math.random()*150, formant=kind==='goal'?620+Math.random()*920:720+Math.random()*820;
-    playCrowdVoice(freq,start,duration,.008+intensity*.014,formant,(Math.random()-.45)*.22);
+    playCrowdVoice(freq,start,duration,.024+intensity*.032,formant,(Math.random()-.45)*.22);
   }
-  if(kind==='shot'||kind==='goal')playNoiseHit(now+.06,.22,.035+intensity*.035,'roar');
-  if(kind==='goal')playNoiseHit(now+.32,.65,.08,'roar');
+  if(kind==='shot'||kind==='goal')playNoiseHit(now+.06,.28,.08+intensity*.09,'roar');
+  if(kind==='goal')playNoiseHit(now+.32,.75,.18,'roar');
 }
 
 function playCrowdChant(intensity=.45){
   if(!audio.enabled||!audio.ctx)return;
   const now=audio.ctx.currentTime, patterns=[[0,.34,.68,1.08],[0,.28,.56,.98,1.24],[0,.42,.84]];
-  const pattern=patterns[audio.chantIndex++%patterns.length], voices=Math.floor(5+intensity*7);
+  const pattern=patterns[audio.chantIndex++%patterns.length], voices=Math.floor(8+intensity*10);
   for(let v=0;v<voices;v++){
     const base=105+Math.random()*125, offset=Math.random()*.09, formant=560+Math.random()*520;
-    pattern.forEach((beat,i)=>playCrowdVoice(base*(1+Math.random()*.08),now+beat+offset,.22+Math.random()*.18,.006+intensity*.01,formant+i*70,(Math.random()-.5)*.1));
+    pattern.forEach((beat,i)=>playCrowdVoice(base*(1+Math.random()*.08),now+beat+offset,.26+Math.random()*.22,.018+intensity*.026,formant+i*70,(Math.random()-.5)*.1));
   }
 }
 
@@ -339,20 +342,20 @@ function updateCrowdAudio(dt){
   const goalProximity=clamp((Math.abs(ball.position.z)-(FIELD.halfL-36))/36,0,1);
   const velocityBoost=clamp(ball.velocity.length()/80,0,.45);
   const ownerBoost=ball.owner?.user ? .08 : 0;
-  const targetIntensity=clamp((running ? .2 : .06)+Math.pow(goalProximity,1.45)*.55+velocityBoost*.32+goalGlow*.75+ownerBoost,0,1);
+  const targetIntensity=clamp((running ? .38 : .14)+Math.pow(goalProximity,1.45)*.58+velocityBoost*.34+goalGlow*.75+ownerBoost,0,1);
   audio.crowdIntensity+= (targetIntensity-audio.crowdIntensity)*(1-Math.pow(.03,dt));
-  const target=.014+audio.crowdIntensity*.12+goalGlow*.08;
+  const target=.07+audio.crowdIntensity*.25+goalGlow*.16;
   const now=audio.ctx.currentTime;
   audio.crowdGain.gain.setTargetAtTime(target,now,.28);
   audio.crowdFilter.frequency.setTargetAtTime(560+goalProximity*820+velocityBoost*420,now,.35);
-  audio.rumbleGain?.gain.setTargetAtTime(.003+audio.crowdIntensity*.018,now,.4);
+  audio.rumbleGain?.gain.setTargetAtTime(.009+audio.crowdIntensity*.03,now,.4);
   if(running){
     audio.chantTimer-=dt*(.65+audio.crowdIntensity*.55);
     audio.clapTimer-=dt*(.9+audio.crowdIntensity*.9);
     audio.shoutTimer-=dt*(.7+audio.crowdIntensity*.75);
-    if(audio.chantTimer<=0){playCrowdChant(audio.crowdIntensity);audio.chantTimer=3.2+Math.random()*2.4-audio.crowdIntensity*1.25;}
-    if(audio.clapTimer<=0){playClapBurst(2+Math.floor(audio.crowdIntensity*5),audio.crowdIntensity);audio.clapTimer=.95+Math.random()*1.25-audio.crowdIntensity*.42;}
-    if(audio.shoutTimer<=0){playCrowdShout('normal',audio.crowdIntensity);audio.shoutTimer=1.55+Math.random()*2.2-audio.crowdIntensity*.7;}
+    if(audio.chantTimer<=0){playCrowdChant(audio.crowdIntensity);audio.chantTimer=1.9+Math.random()*1.7-audio.crowdIntensity*.75;}
+    if(audio.clapTimer<=0){playClapBurst(3+Math.floor(audio.crowdIntensity*6),audio.crowdIntensity);audio.clapTimer=.55+Math.random()*.85-audio.crowdIntensity*.25;}
+    if(audio.shoutTimer<=0){playCrowdShout('normal',audio.crowdIntensity);audio.shoutTimer=.95+Math.random()*1.35-audio.crowdIntensity*.35;}
   }
   if(running&&goalProximity>.72&&performance.now()-lastGoalPressureNarration>7000){
     lastGoalPressureNarration=performance.now();
