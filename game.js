@@ -61,6 +61,9 @@ let running = false, time = 120, blueScore = 0, redScore = 0, kickoff = 0, charg
 let passCharging = false;
 let sprintButtonHeld = false;
 let cameraShake = 0, goalGlow = 0;
+let lastOwnerNarrated = null;
+let lastDribbleNarration = 0;
+let lastGoalPressureNarration = 0;
 const touchInput = { x: 0, y: 0, moveId: null, cameraId: null, cameraX: 0, cameraY: 0, shootHeld: false };
 const visualEffects = new THREE.Group();
 scene.add(visualEffects);
@@ -94,6 +97,95 @@ function toggleCameraMode(){
   if(cameraMode === 'broadcast') document.exitPointerLock?.();
   flash(cameraMode === 'broadcast' ? 'CÂMERA TV' : 'CÂMERA JOGADOR', cameraMode === 'broadcast' ? '#37e5e2' : '#eaff65');
   updateCameraButton();
+}
+
+const audio = {
+  ctx:null, master:null, crowdGain:null, crowdFilter:null, crowdSource:null, rumble:null, rumbleGain:null,
+  enabled:false, lastSpeech:0, voice:null
+};
+
+function initAudio(){
+  if(audio.enabled)return;
+  const AudioContext=window.AudioContext||window.webkitAudioContext;
+  if(!AudioContext)return;
+  audio.ctx=audio.ctx||new AudioContext();
+  if(audio.ctx.state==='suspended')audio.ctx.resume?.();
+  audio.master=audio.ctx.createGain();audio.master.gain.value=.72;audio.master.connect(audio.ctx.destination);
+  const duration=2.2, length=Math.floor(audio.ctx.sampleRate*duration), buffer=audio.ctx.createBuffer(1,length,audio.ctx.sampleRate), data=buffer.getChannelData(0);
+  for(let i=0;i<length;i++){
+    const wave=Math.sin(i*.011)*.08+Math.sin(i*.027)*.05;
+    data[i]=(Math.random()*2-1)*.26+wave;
+  }
+  audio.crowdSource=audio.ctx.createBufferSource();audio.crowdSource.buffer=buffer;audio.crowdSource.loop=true;
+  audio.crowdFilter=audio.ctx.createBiquadFilter();audio.crowdFilter.type='bandpass';audio.crowdFilter.frequency.value=720;audio.crowdFilter.Q.value=.75;
+  audio.crowdGain=audio.ctx.createGain();audio.crowdGain.gain.value=.025;
+  audio.crowdSource.connect(audio.crowdFilter);audio.crowdFilter.connect(audio.crowdGain);audio.crowdGain.connect(audio.master);audio.crowdSource.start();
+  audio.rumble=audio.ctx.createOscillator();audio.rumble.type='sawtooth';audio.rumble.frequency.value=82;
+  audio.rumbleGain=audio.ctx.createGain();audio.rumbleGain.gain.value=.006;
+  audio.rumble.connect(audio.rumbleGain);audio.rumbleGain.connect(audio.master);audio.rumble.start();
+  audio.enabled=true;
+  chooseNarratorVoice();
+  narrate('Narrador ligado. A bola vai rolar na Arena Zero!', true);
+}
+
+function chooseNarratorVoice(){
+  if(!window.speechSynthesis)return;
+  const voices=window.speechSynthesis.getVoices?.()||[];
+  audio.voice=voices.find(v=>/pt-BR|Portuguese|Brasil/i.test(`${v.lang} ${v.name}`))||voices[0]||null;
+}
+window.speechSynthesis?.addEventListener?.('voiceschanged',chooseNarratorVoice);
+
+function narrate(text, urgent=false, minGap=2300){
+  if(!running&&!urgent)return;
+  const now=performance.now();
+  if(!urgent&&now-audio.lastSpeech<minGap)return;
+  audio.lastSpeech=now;
+  if(window.speechSynthesis){
+    if(urgent)window.speechSynthesis.cancel();
+    const utter=new SpeechSynthesisUtterance(text);
+    utter.lang='pt-BR'; utter.rate=1.12; utter.pitch=1.06; utter.volume=.9;
+    if(audio.voice)utter.voice=audio.voice;
+    window.speechSynthesis.speak(utter);
+  }
+}
+
+function playTone(freq=440,duration=.12,type='sine',volume=.08){
+  if(!audio.ctx||!audio.enabled)return;
+  const osc=audio.ctx.createOscillator(), gain=audio.ctx.createGain(), now=audio.ctx.currentTime;
+  osc.type=type;osc.frequency.setValueAtTime(freq,now);gain.gain.setValueAtTime(volume,now);gain.gain.exponentialRampToValueAtTime(.001,now+duration);
+  osc.connect(gain);gain.connect(audio.master);osc.start(now);osc.stop(now+duration+.02);
+}
+
+function playerName(player){
+  if(!player)return 'ninguém';
+  if(player.user)return player.profile?.name||'Vicente';
+  if(player.goalkeeper)return player.team==='blue'?'goleiro azul':'goleiro vermelho';
+  const side=player.team==='blue'?'azul':'vermelho';
+  return `${player.profile?.name||'jogador'} ${side}`;
+}
+
+function announcePossession(){
+  if(!running||!ball.owner)return;
+  if(ball.owner!==lastOwnerNarrated){
+    lastOwnerNarrated=ball.owner;
+    narrate(`${playerName(ball.owner)} está com a bola.`, false, 1700);
+  }
+}
+
+function updateCrowdAudio(dt){
+  if(!audio.enabled||!audio.ctx||!audio.crowdGain)return;
+  const goalProximity=clamp((Math.abs(ball.position.z)-(FIELD.halfL-36))/36,0,1);
+  const velocityBoost=clamp(ball.velocity.length()/70,0,.35);
+  const ownerBoost=ball.owner?.user ? .025 : 0;
+  const target=(running ? .035 : .018)+Math.pow(goalProximity,1.55)*.24+velocityBoost+goalGlow*.2+ownerBoost;
+  const now=audio.ctx.currentTime;
+  audio.crowdGain.gain.setTargetAtTime(target,now,.28);
+  audio.crowdFilter.frequency.setTargetAtTime(620+goalProximity*850+velocityBoost*500,now,.35);
+  audio.rumbleGain?.gain.setTargetAtTime(.004+goalProximity*.018,now,.4);
+  if(running&&goalProximity>.72&&performance.now()-lastGoalPressureNarration>7000){
+    lastGoalPressureNarration=performance.now();
+    narrate(ball.owner?`${playerName(ball.owner)} chega perto do gol!`:'Perigo perto da área!', false, 3200);
+  }
 }
 
 function material(color, roughness = 0.72, metalness = 0.05) {
@@ -464,6 +556,10 @@ class Player {
 
     const dribbleTarget=goal.clone();
     if(pressure&&pressureDistance<7){const evade=flatDirection(pressure.position,this.position);dribbleTarget.x=clamp(this.position.x+evade.x*9,-FIELD.halfW+4,FIELD.halfW-4);dribbleTarget.z=this.position.z+attackZ*13;}
+    if(performance.now()-lastDribbleNarration>5200&&flatDistance(this,ball)<2.2){
+      lastDribbleNarration=performance.now();
+      narrate(pressure&&pressureDistance<7?`${playerName(this)} escolheu driblar a marcação.`:`${playerName(this)} conduz e espera a jogada.`, false, 2600);
+    }
     this.ballDirection.copy(flatDirection(this.position,dribbleTarget));
     this.moveTactically(dribbleTarget,pressureDistance<4?this.baseSpeed*.96:this.baseSpeed*.88,dt,mates);
   }
@@ -513,7 +609,7 @@ function reset(){
     new Player(18,-27,'red',false,false,'defender',PLAYER_PROFILES[3]),
     new Player(0,-FIELD.halfL+3,'red',false,true,'goalkeeper',GOALKEEPER_PROFILE)
   ];
-  ball.position.set(0,.48,0); ball.velocity.set(0,0,0); ball.owner=null; charge=0; passCharge=0; passCharging=false; kickoff=1.4;
+  ball.position.set(0,.48,0); ball.velocity.set(0,0,0); ball.owner=null; lastOwnerNarrated=null; charge=0; passCharge=0; passCharging=false; kickoff=1.4;
   for(let i=0;i<trailCount;i++){trailArray[i*3]=0;trailArray[i*3+1]=.48;trailArray[i*3+2]=0;}trailGeometry.attributes.position.needsUpdate=true;
 }
 
@@ -521,6 +617,10 @@ function kickBall(player,dir,power,lift=.08,isShot=false){
   if(ball.owner!==player)return; ball.owner=null;
   if(player.goalkeeper){ball.position.addScaledVector(dir,1.7);ball.position.y=.6;player.releaseLock=.45;}
   const force=isShot?36+power*60:16+power*18; ball.velocity.set(dir.x*force,3+lift*force,dir.z*force); player.velocity.addScaledVector(dir,-2);cameraShake=Math.max(cameraShake,.08+power*.16);spawnKickBurst(ball.position,player.team);
+  lastOwnerNarrated=null;
+  if(isShot){playTone(220+power*170,.14,'square',.075);narrate(`${playerName(player)} chutou!`, player.user, player.user?900:1700);}
+  else if(player.goalkeeper){playTone(160,.12,'sawtooth',.05);narrate(`${playerName(player)} repõe a bola em jogo.`, false, 2300);}
+  else {playTone(360+power*80,.08,'triangle',.045);narrate(`${playerName(player)} tocou a bola.`, false, 1800);}
 }
 function shoot(){ const user=userPlayer(); if(ball.owner!==user||kickoff>0)return; kickBall(user,flatDirection(ball.position,aimPoint),clamp(charge*user.shotPower+.03,0,1.25),.13,true); }
 function pass(power = .22){
@@ -551,6 +651,7 @@ function spawnGoalCelebration(team){
 function updateVisualEffects(dt){
   for(let i=effectParticles.length-1;i>=0;i--){const p=effectParticles[i];p.userData.life-=dt;p.userData.velocity.y-=9*dt;p.position.addScaledVector(p.userData.velocity,dt);if(p.userData.spin){p.rotation.x+=p.userData.spin.x*dt;p.rotation.y+=p.userData.spin.y*dt;p.rotation.z+=p.userData.spin.z*dt;}p.material.opacity=clamp(p.userData.life*1.5,0,1);if(p.userData.life<=0){visualEffects.remove(p);p.geometry.dispose();p.material.dispose();effectParticles.splice(i,1);}}
   goalGlow=Math.max(0,goalGlow-dt*1.4);renderer.toneMappingExposure=1.36+goalGlow*.48;
+  updateCrowdAudio(dt);
 }
 
 function updateAim(){
@@ -582,7 +683,7 @@ function updateBall(dt){
 function resolvePlayers(){
   for(let i=0;i<players.length;i++)for(let j=i+1;j<players.length;j++){ const a=players[i],b=players[j],dx=b.position.x-a.position.x,dz=b.position.z-a.position.z,d=Math.hypot(dx,dz); if(d<1.25&&d>0){const push=(1.25-d)/2;a.position.x-=dx/d*push;a.position.z-=dz/d*push;b.position.x+=dx/d*push;b.position.z+=dz/d*push;} }
 }
-function goal(team){ if(kickoff>0)return; team==='blue'?blueScore++:redScore++; ui.blue.textContent=blueScore;ui.red.textContent=redScore;spawnGoalCelebration(team);flash(team==='blue'?'GOLAÇO!':'GOL DELES!',team==='blue'?'#37e5e2':'#ff5c4d');reset(); }
+function goal(team){ if(kickoff>0)return; team==='blue'?blueScore++:redScore++; ui.blue.textContent=blueScore;ui.red.textContent=redScore;spawnGoalCelebration(team);playTone(540,.32,'sawtooth',.12);narrate(team==='blue'?'Golaço do time azul!':'Gol do time vermelho!',true);flash(team==='blue'?'GOLAÇO!':'GOL DELES!',team==='blue'?'#37e5e2':'#ff5c4d');reset(); }
 function flash(text,color='#fff'){ui.message.textContent=text;ui.message.style.color=color;ui.message.classList.add('show');setTimeout(()=>ui.message.classList.remove('show'),1000);}
 function endGame(){running=false;document.exitPointerLock?.();const result=blueScore===redScore?'EMPATE!':blueScore>redScore?'VITÓRIA!':'DERROTA';flash(result,blueScore>=redScore?'#eaff65':'#ff5c4d');setTimeout(()=>{ui.start.querySelector('h1').innerHTML=`${result}<br><em>${blueScore} × ${redScore}</em>`;ui.start.querySelector('button').innerHTML='JOGAR DE NOVO <span>→</span>';ui.start.classList.remove('hidden');},1200);}
 
@@ -616,6 +717,11 @@ function update(dt){
   if((mouseDown||touchInput.shootHeld)&&ball.owner===userPlayer())charge=clamp(charge+dt*.7,0,1);
   if(passCharging&&ball.owner===userPlayer())passCharge=clamp(passCharge+dt*1.05,0,1);
   players.forEach(p=>p.update(dt)); resolvePlayers(); updateBall(dt);
+  announcePossession();
+  if(ball.owner?.user&&ball.owner.velocity.length()>5&&performance.now()-lastDribbleNarration>5200){
+    lastDribbleNarration=performance.now();
+    narrate(`${playerName(ball.owner)} escolheu driblar e acelerar.`, false, 2600);
+  }
   const mins=Math.floor(time/60),secs=Math.floor(time%60);ui.clock.textContent=`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;if(time<=0)endGame();
 }
 function animate(){requestAnimationFrame(animate);const dt=Math.min(clock3d.getDelta(),.033);resize();update(dt);const aimCharge=passCharging?passCharge:charge;aimRing.material.color.set(passCharging?0x37e5e2:charge>.82?0xff5c4d:0xeaff65);aimLine.material.color.set(passCharging?0x37e5e2:0xeaff65);const aimPulse=1+Math.sin(clock3d.elapsedTime*5)*.08+aimCharge*.32;aimMarker.scale.setScalar(aimPulse);renderer.render(scene,camera);}
@@ -711,6 +817,6 @@ bindShootButton(ui.mobileShoot);
 bindTapButton(ui.mobilePass,pass);
 bindTapButton(ui.mobileTackle,tackle);
 bindSprintButton(ui.mobileSprint);
-ui.startButton.addEventListener('click',()=>{blueScore=redScore=0;time=120;ui.blue.textContent=ui.red.textContent='0';reset();running=true;ui.start.classList.add('hidden');if(usePointerLock())requestPointerLockSafe();});
+ui.startButton.addEventListener('click',()=>{initAudio();blueScore=redScore=0;time=120;ui.blue.textContent=ui.red.textContent='0';reset();running=true;ui.start.classList.add('hidden');if(usePointerLock())requestPointerLockSafe();});
 
 updateCameraButton();addAtmosphere();addLights();addPitch();reset();camera.position.set(0,10,35);animate();
