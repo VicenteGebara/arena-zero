@@ -4,6 +4,7 @@ const ui = {
   blue: document.getElementById('blueScore'), red: document.getElementById('redScore'),
   clock: document.getElementById('clock'), stamina: document.getElementById('staminaBar'),
   start: document.getElementById('startScreen'), message: document.getElementById('message'), sprint: document.getElementById('sprintButton'),
+  camera: document.getElementById('cameraButton'),
   moveStick: document.getElementById('moveStick'), mobileShoot: document.getElementById('mobileShoot'),
   mobilePass: document.getElementById('mobilePass'), mobileTackle: document.getElementById('mobileTackle'),
   mobileSprint: document.getElementById('mobileSprint'), startButton: document.getElementById('startButton'),
@@ -35,6 +36,8 @@ const pointer = new THREE.Vector2(0, 0.25);
 const aimPoint = new THREE.Vector3(0, 0, -15);
 const keys = {};
 const cameraOrbit = { yaw: 0, pitch: .46, distance: 15 };
+const broadcastCamera = { yaw: -Math.PI * .58, pitch: .74, distance: 46 };
+let cameraMode = 'follow';
 
 const FIELD = { halfW: 46, halfL: 72, goalHalf: 7, goalDepth: 4 };
 const TEAM_PALETTE = {
@@ -65,16 +68,32 @@ scene.add(visualEffects);
 const clamp = THREE.MathUtils.clamp;
 const flatDistance = (a, b) => Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z);
 const flatDirection = (from, to) => new THREE.Vector3(to.x - from.x, 0, to.z - from.z).normalize();
-const cameraForward = () => new THREE.Vector3(-Math.sin(cameraOrbit.yaw), 0, -Math.cos(cameraOrbit.yaw));
-const cameraRight = () => new THREE.Vector3(Math.cos(cameraOrbit.yaw), 0, -Math.sin(cameraOrbit.yaw));
+const activeCameraRig = () => cameraMode === 'broadcast' ? broadcastCamera : cameraOrbit;
+const activeCameraYaw = () => activeCameraRig().yaw;
+const cameraForward = () => new THREE.Vector3(-Math.sin(activeCameraYaw()), 0, -Math.cos(activeCameraYaw()));
+const cameraRight = () => new THREE.Vector3(Math.cos(activeCameraYaw()), 0, -Math.sin(activeCameraYaw()));
 const coarsePointer = () => matchMedia('(pointer: coarse)').matches;
 const touchPointer = e => e.pointerType === 'touch' || e.pointerType === 'pen';
-const usePointerLock = () => !coarsePointer();
+const usePointerLock = () => !coarsePointer() && cameraMode === 'follow';
 function requestPointerLockSafe(){
   try {
     const lock = canvas.requestPointerLock?.();
     lock?.catch?.(()=>{});
   } catch {}
+}
+
+function updateCameraButton(){
+  if(!ui.camera)return;
+  const broadcast = cameraMode === 'broadcast';
+  ui.camera.classList.toggle('active', broadcast);
+  ui.camera.querySelector('strong').textContent = broadcast ? 'TV ALTA' : '3ª PESSOA';
+}
+
+function toggleCameraMode(){
+  cameraMode = cameraMode === 'follow' ? 'broadcast' : 'follow';
+  if(cameraMode === 'broadcast') document.exitPointerLock?.();
+  flash(cameraMode === 'broadcast' ? 'CÂMERA TV' : 'CÂMERA JOGADOR', cameraMode === 'broadcast' ? '#37e5e2' : '#eaff65');
+  updateCameraButton();
 }
 
 function material(color, roughness = 0.72, metalness = 0.05) {
@@ -569,19 +588,23 @@ function endGame(){running=false;document.exitPointerLock?.();const result=blueS
 
 function updateCamera(dt){
   const user=userPlayer(); if(!user)return;
+  const rig=activeCameraRig();
   const horizontalInput=(keys.KeyL?1:0)-(keys.KeyJ?1:0);
   const verticalInput=(keys.KeyK?1:0)-(keys.KeyI?1:0);
-  cameraOrbit.yaw-=horizontalInput*1.9*dt;
-  cameraOrbit.pitch=clamp(cameraOrbit.pitch+verticalInput*1.15*dt,.2,.82);
-  const horizontal=Math.cos(cameraOrbit.pitch)*cameraOrbit.distance;
+  rig.yaw-=horizontalInput*(cameraMode==='broadcast'?1.25:1.9)*dt;
+  rig.pitch=clamp(rig.pitch+verticalInput*(cameraMode==='broadcast' ? .75 : 1.15)*dt,cameraMode==='broadcast' ? .55 : .2,cameraMode==='broadcast' ? .88 : .82);
+  const focus=cameraMode==='broadcast'
+    ? user.position.clone().lerp(ball.position,.38).addScaledVector(user.velocity,.06)
+    : user.position;
+  const horizontal=Math.cos(rig.pitch)*rig.distance;
   const desired=new THREE.Vector3(
-    user.position.x+Math.sin(cameraOrbit.yaw)*horizontal,
-    2.2+Math.sin(cameraOrbit.pitch)*cameraOrbit.distance,
-    user.position.z+Math.cos(cameraOrbit.yaw)*horizontal
+    focus.x+Math.sin(rig.yaw)*horizontal,
+    (cameraMode==='broadcast'?4.8:2.2)+Math.sin(rig.pitch)*rig.distance,
+    focus.z+Math.cos(rig.yaw)*horizontal
   );
-  camera.position.lerp(desired,1-Math.pow(.001,dt));
+  camera.position.lerp(desired,1-Math.pow(cameraMode==='broadcast' ? .015 : .001,dt));
   if(cameraShake>0){camera.position.x+=(Math.random()-.5)*cameraShake;camera.position.y+=(Math.random()-.5)*cameraShake*.5;camera.position.z+=(Math.random()-.5)*cameraShake;cameraShake=Math.max(0,cameraShake-dt*1.8);}
-  camera.lookAt(user.position.x,1.25,user.position.z);
+  camera.lookAt(focus.x,cameraMode==='broadcast'?1.4:1.25,focus.z);
 }
 function resize(){
   const wrap=canvas.parentElement, w=wrap.clientWidth, h=wrap.clientHeight;
@@ -650,12 +673,14 @@ canvas.addEventListener('pointermove',e=>{
   const r=canvas.getBoundingClientRect();pointer.x=((e.clientX-r.left)/r.width)*2-1;pointer.y=-((e.clientY-r.top)/r.height)*2+1;
   if(touchInput.cameraId===e.pointerId){
     const dx=e.clientX-touchInput.cameraX,dy=e.clientY-touchInput.cameraY;
-    cameraOrbit.yaw-=dx*.006;cameraOrbit.pitch=clamp(cameraOrbit.pitch+dy*.0048,.2,.82);
+    const rig=activeCameraRig();
+    rig.yaw-=dx*(cameraMode==='broadcast' ? .0036 : .006);
+    rig.pitch=clamp(rig.pitch+dy*(cameraMode==='broadcast' ? .0028 : .0048),cameraMode==='broadcast' ? .55 : .2,cameraMode==='broadcast' ? .88 : .82);
     touchInput.cameraX=e.clientX;touchInput.cameraY=e.clientY;pointer.set(0,0);e.preventDefault();
   }
 });
 document.addEventListener('mousemove',e=>{
-  if(document.pointerLockElement===canvas){cameraOrbit.yaw-=e.movementX*.0028;cameraOrbit.pitch=clamp(cameraOrbit.pitch+e.movementY*.0022,.2,.82);pointer.set(0,0);}
+  if(document.pointerLockElement===canvas){const rig=activeCameraRig();rig.yaw-=e.movementX*.0028;rig.pitch=clamp(rig.pitch+e.movementY*.0022,.2,.82);pointer.set(0,0);}
 });
 document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement===canvas)pointer.set(0,0);});
 canvas.addEventListener('pointerdown',e=>{
@@ -667,13 +692,14 @@ window.addEventListener('pointerup',e=>{
   if(e.button===0&&mouseDown){mouseDown=false;shoot();charge=0;}
 });
 window.addEventListener('pointercancel',e=>{if(e.pointerId===touchInput.cameraId)touchInput.cameraId=null;});
-canvas.addEventListener('wheel',e=>{e.preventDefault();cameraOrbit.distance=clamp(cameraOrbit.distance+e.deltaY*.012,9,23);},{passive:false});
+canvas.addEventListener('wheel',e=>{e.preventDefault();const rig=activeCameraRig();rig.distance=clamp(rig.distance+e.deltaY*(cameraMode==='broadcast' ? .02 : .012),cameraMode==='broadcast'?32:9,cameraMode==='broadcast'?62:23);},{passive:false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-window.addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','KeyE','KeyI','KeyJ','KeyK','KeyL'].includes(e.code))e.preventDefault();if(e.code==='Space'&&!e.repeat){passCharging=true;passCharge=.18;}if(e.code==='KeyE'&&!e.repeat)tackle();});
+window.addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','KeyE','KeyI','KeyJ','KeyK','KeyL','KeyC'].includes(e.code))e.preventDefault();if(e.code==='Space'&&!e.repeat){passCharging=true;passCharge=.18;}if(e.code==='KeyE'&&!e.repeat)tackle();if(e.code==='KeyC'&&!e.repeat)toggleCameraMode();});
 window.addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='Space'&&passCharging){pass(passCharge);passCharging=false;passCharge=0;}});
 ui.sprint.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();sprintButtonHeld=true;ui.sprint.classList.add('active');ui.sprint.setPointerCapture?.(e.pointerId);});
 const releaseSprint=()=>{sprintButtonHeld=false;ui.sprint.classList.remove('active');};
 ui.sprint.addEventListener('pointerup',releaseSprint);ui.sprint.addEventListener('pointercancel',releaseSprint);ui.sprint.addEventListener('lostpointercapture',releaseSprint);
+ui.camera?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();toggleCameraMode();});
 if(ui.moveStick){
   ui.moveStick.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();touchInput.moveId=e.pointerId;setStickFromPointer(e);ui.moveStick.setPointerCapture?.(e.pointerId);});
   ui.moveStick.addEventListener('pointermove',e=>{if(e.pointerId===touchInput.moveId){e.preventDefault();setStickFromPointer(e);}});
@@ -687,4 +713,4 @@ bindTapButton(ui.mobileTackle,tackle);
 bindSprintButton(ui.mobileSprint);
 ui.startButton.addEventListener('click',()=>{blueScore=redScore=0;time=120;ui.blue.textContent=ui.red.textContent='0';reset();running=true;ui.start.classList.add('hidden');if(usePointerLock())requestPointerLockSafe();});
 
-addAtmosphere();addLights();addPitch();reset();camera.position.set(0,10,35);animate();
+updateCameraButton();addAtmosphere();addLights();addPitch();reset();camera.position.set(0,10,35);animate();

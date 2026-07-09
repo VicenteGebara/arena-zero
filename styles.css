@@ -55,6 +55,10 @@ h1 em { font-style:normal; color:var(--cyan); text-shadow:0 0 34px rgba(55,229,2
 .start-screen button span { margin-left:30px; }
 .message { position:absolute; z-index:5; left:50%; top:18%; transform:translate(-50%,-20px) scale(.8); font:900 clamp(28px,5vw,70px) Archivo; letter-spacing:-3px; opacity:0; text-shadow:0 5px 30px #000,0 0 45px currentColor; pointer-events:none; transition:.25s; }
 .message.show { opacity:1; transform:translate(-50%,0) scale(1); }
+.camera-button { position:absolute; z-index:3; right:22px; top:20px; border:1px solid rgba(55,229,226,.58); border-radius:7px; padding:12px 15px; color:var(--white); background:rgba(5,12,15,.62); box-shadow:0 7px 25px rgba(0,0,0,.32),0 0 18px rgba(55,229,226,.12); backdrop-filter:blur(10px); font:900 11px Space Mono; letter-spacing:.5px; cursor:pointer; touch-action:manipulation; user-select:none; transition:transform .12s,background .12s,box-shadow .12s,border-color .12s; }
+.camera-button strong { display:block; margin-top:2px; color:var(--cyan); font-size:9px; }
+.camera-button.active { border-color:rgba(234,255,101,.78); background:rgba(34,43,20,.7); box-shadow:0 0 26px rgba(234,255,101,.2),inset 0 0 18px rgba(234,255,101,.05); }
+.camera-button.active strong { color:var(--yellow); }
 .run-button { position:absolute; z-index:3; right:22px; bottom:20px; border:1px solid rgba(234,255,101,.7); border-radius:7px; padding:13px 16px; color:#11180d; background:var(--yellow); box-shadow:0 7px 25px rgba(0,0,0,.32),0 0 18px rgba(234,255,101,.14); font:900 11px Space Mono; letter-spacing:.5px; cursor:pointer; touch-action:none; user-select:none; transition:transform .12s,background .12s,box-shadow .12s; }
 .run-button strong { display:block; margin-top:2px; font-size:9px; }
 .run-button.active { transform:scale(.94); color:var(--white); background:#283518; box-shadow:inset 0 0 18px rgba(0,0,0,.45),0 0 24px rgba(234,255,101,.35); }
@@ -94,7 +98,7 @@ footer { max-width:1420px; margin:auto; padding:30px 28px 50px; border-top:1px s
 @media(max-width:1050px) { .controls div span { display:none; } .controls { gap:6px; } }
 @media(max-width:1050px) { .player-picker { grid-template-columns:repeat(2,1fr); max-width:640px; } .player-option { min-height:132px; } }
 @media(max-width:900px) { main { padding:0 14px; } .cards { grid-template-columns:1fr 1fr; } .scoreboard { grid-template-columns:1fr 120px 1fr; } .hud { padding:10px; } .stamina>div { width:80px; } }
-@media(max-width:560px) { .status { display:none; } .team { gap:8px; } .team span { display:none; } .controls div:nth-child(2),.controls div:nth-child(5),.controls div:nth-child(6) { display:none; } .stamina span { display:none; } .run-button { right:10px; bottom:10px; padding:10px 12px; } .cards { grid-template-columns:1fr; } .cards article { min-height:220px; } .cards h3 { margin-top:70px; } h1 { letter-spacing:-4px; } .mechanics { padding:90px 0; } .player-picker { grid-template-columns:1fr; width:min(360px,92%); } .player-option { min-height:104px; display:grid; grid-template-columns:54px 1fr; align-items:center; } .player-option em { grid-column:2; } }
+@media(max-width:560px) { .status { display:none; } .team { gap:8px; } .team span { display:none; } .controls div:nth-child(2),.controls div:nth-child(5),.controls div:nth-child(6) { display:none; } .stamina span { display:none; } .run-button { right:10px; bottom:10px; padding:10px 12px; } .camera-button { right:10px; top:10px; padding:10px 12px; } .cards { grid-template-columns:1fr; } .cards article { min-height:220px; } .cards h3 { margin-top:70px; } h1 { letter-spacing:-4px; } .mechanics { padding:90px 0; } .player-picker { grid-template-columns:1fr; width:min(360px,92%); } .player-option { min-height:104px; display:grid; grid-template-columns:54px 1fr; align-items:center; } .player-option em { grid-column:2; } }
 @media(max-width:760px), (pointer:coarse) {
   main { max-width:none; padding:0; }
   header { height:58px; padding:0 14px; }
@@ -112,6 +116,8 @@ footer { max-width:1420px; margin:auto; padding:30px 28px 50px; border-top:1px s
   .player-option { border-radius:17px; }
   .mobile-controls { display:block; }
   .run-button { display:none; }
+  .camera-button { top:10px; right:10px; padding:9px 11px; font-size:10px; background:rgba(5,12,15,.52); }
+  .camera-button strong { font-size:8px; }
   .hud { min-height:84px; padding:9px 12px calc(9px + env(safe-area-inset-bottom)); }
   .controls { max-width:74%; }
   .controls div:nth-child(n+5) { display:none; }
@@ -136,6 +142,7 @@ footer { max-width:1420px; margin:auto; padding:30px 28px 50px; border-top:1px s
   .mobile-actions { grid-template-columns:74px 74px; }
   .mobile-action { min-height:50px; }
   .mobile-action.shoot { min-height:110px; }
+  .camera-button { top:8px; right:8px; }
   .start-screen { justify-content:flex-start; }
   .player-picker { max-height:46svh; }
   .player-option { min-height:84px; padding:10px; grid-template-columns:44px 1fr; }

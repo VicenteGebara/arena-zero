@@ -12,6 +12,7 @@ Abra `index.html` em um navegador moderno.
 - Movimento do mouse: girar a câmera durante a partida
 - `J` e `L`: girar a câmera pelo teclado
 - `I` e `K`: inclinar a câmera pelo teclado
+- `C` ou botão **CÂMERA**: alternar entre câmera de jogador e câmera TV alta/lateral
 - Rodinha do mouse: aproximar ou afastar a câmera
 - Segurar e soltar o clique: chute carregado
 - Segurar e soltar `Espaço`: passe direcionado carregado
@@ -31,6 +32,7 @@ Abra `index.html` em um navegador moderno.
 - Companheiros do time azul procuram tocar a bola para o jogador principal quando ele está livre
 - Campo com dimensões duplicadas em largura e comprimento
 - Controle de um único atleta
+- Duas câmeras: terceira pessoa e câmera TV alta/lateral
 - Sprint limitado por energia
 - Chute carregado com direção livre
 - Passe assistido para companheiros com força carregada no `Espaço`
