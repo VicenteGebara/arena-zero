@@ -54,7 +54,8 @@ const NPC_PROFILES = [
 ];
 const GOALKEEPER_PROFILE = { name: 'Goleiro', number: 1, speed: 7.8, sprintSpeed: 11.4, height: 1.12, bulk: 1.18, skin: 0xb87554, hair: 0x101010, boot: 0xf4f7f3, accent: 0x171c20, hairStyle: 'buzz', shotPower: 1, passPower: 1, tacklePower: 1.15 };
 let selectedPlayerIndex = 0;
-let running = false, time = 120, blueScore = 0, redScore = 0, kickoff = 0, charge = 0, mouseDown = false;
+let running = false, time = 120, blueScore = 0, redScore = 0, kickoff = 0, charge = 0, passCharge = 0, mouseDown = false;
+let passCharging = false;
 let sprintButtonHeld = false;
 let cameraShake = 0, goalGlow = 0;
 const touchInput = { x: 0, y: 0, moveId: null, cameraId: null, cameraX: 0, cameraY: 0, shootHeld: false };
@@ -493,7 +494,7 @@ function reset(){
     new Player(18,-27,'red',false,false,'defender',PLAYER_PROFILES[3]),
     new Player(0,-FIELD.halfL+3,'red',false,true,'goalkeeper',GOALKEEPER_PROFILE)
   ];
-  ball.position.set(0,.48,0); ball.velocity.set(0,0,0); ball.owner=null; charge=0; kickoff=1.4;
+  ball.position.set(0,.48,0); ball.velocity.set(0,0,0); ball.owner=null; charge=0; passCharge=0; passCharging=false; kickoff=1.4;
   for(let i=0;i<trailCount;i++){trailArray[i*3]=0;trailArray[i*3+1]=.48;trailArray[i*3+2]=0;}trailGeometry.attributes.position.needsUpdate=true;
 }
 
@@ -503,10 +504,13 @@ function kickBall(player,dir,power,lift=.08,isShot=false){
   const force=isShot?36+power*60:16+power*18; ball.velocity.set(dir.x*force,3+lift*force,dir.z*force); player.velocity.addScaledVector(dir,-2);cameraShake=Math.max(cameraShake,.08+power*.16);spawnKickBurst(ball.position,player.team);
 }
 function shoot(){ const user=userPlayer(); if(ball.owner!==user||kickoff>0)return; kickBall(user,flatDirection(ball.position,aimPoint),clamp(charge*user.shotPower+.03,0,1.25),.13,true); }
-function pass(){
+function pass(power = .22){
   const user=userPlayer(); if(ball.owner!==user||kickoff>0)return; const mates=players.filter(p=>p.team==='blue'&&p!==user), aimDir=flatDirection(user.position,aimPoint);
   const target=[...mates].sort((a,b)=>flatDirection(user.position,b.position).dot(aimDir)-flatDirection(user.position,a.position).dot(aimDir))[0];
-  const lead=target.position.clone().addScaledVector(target.velocity,.18); kickBall(user,flatDirection(ball.position,lead),.28*user.passPower,.03);
+  if(!target)return;
+  const passStrength=clamp(power, .18, 1.15)*user.passPower;
+  const lead=target.position.clone().addScaledVector(target.velocity,.14+passStrength*.24);
+  kickBall(user,flatDirection(ball.position,lead),passStrength,.035);
 }
 function tackle(){
   const user=userPlayer(); if(user.stamina<20||user.cooldown>0)return;
@@ -587,10 +591,11 @@ function update(dt){
   updateCamera(dt); updateAim(); updateVisualEffects(dt); if(!running)return;
   if(kickoff>0)kickoff-=dt;else time=Math.max(0,time-dt);
   if((mouseDown||touchInput.shootHeld)&&ball.owner===userPlayer())charge=clamp(charge+dt*.7,0,1);
+  if(passCharging&&ball.owner===userPlayer())passCharge=clamp(passCharge+dt*1.05,0,1);
   players.forEach(p=>p.update(dt)); resolvePlayers(); updateBall(dt);
   const mins=Math.floor(time/60),secs=Math.floor(time%60);ui.clock.textContent=`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;if(time<=0)endGame();
 }
-function animate(){requestAnimationFrame(animate);const dt=Math.min(clock3d.getDelta(),.033);resize();update(dt);aimRing.material.color.set(charge>.82?0xff5c4d:0xeaff65);const aimPulse=1+Math.sin(clock3d.elapsedTime*5)*.08+charge*.32;aimMarker.scale.setScalar(aimPulse);renderer.render(scene,camera);}
+function animate(){requestAnimationFrame(animate);const dt=Math.min(clock3d.getDelta(),.033);resize();update(dt);const aimCharge=passCharging?passCharge:charge;aimRing.material.color.set(passCharging?0x37e5e2:charge>.82?0xff5c4d:0xeaff65);aimLine.material.color.set(passCharging?0x37e5e2:0xeaff65);const aimPulse=1+Math.sin(clock3d.elapsedTime*5)*.08+aimCharge*.32;aimMarker.scale.setScalar(aimPulse);renderer.render(scene,camera);}
 
 function setStickFromPointer(e){
   const rect=ui.moveStick.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,r=rect.width*.38;
@@ -664,8 +669,8 @@ window.addEventListener('pointerup',e=>{
 window.addEventListener('pointercancel',e=>{if(e.pointerId===touchInput.cameraId)touchInput.cameraId=null;});
 canvas.addEventListener('wheel',e=>{e.preventDefault();cameraOrbit.distance=clamp(cameraOrbit.distance+e.deltaY*.012,9,23);},{passive:false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-window.addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','KeyE','KeyI','KeyJ','KeyK','KeyL'].includes(e.code))e.preventDefault();if(e.code==='Space'&&!e.repeat)pass();if(e.code==='KeyE'&&!e.repeat)tackle();});
-window.addEventListener('keyup',e=>{keys[e.code]=false;});
+window.addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','KeyE','KeyI','KeyJ','KeyK','KeyL'].includes(e.code))e.preventDefault();if(e.code==='Space'&&!e.repeat){passCharging=true;passCharge=.18;}if(e.code==='KeyE'&&!e.repeat)tackle();});
+window.addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='Space'&&passCharging){pass(passCharge);passCharging=false;passCharge=0;}});
 ui.sprint.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();sprintButtonHeld=true;ui.sprint.classList.add('active');ui.sprint.setPointerCapture?.(e.pointerId);});
 const releaseSprint=()=>{sprintButtonHeld=false;ui.sprint.classList.remove('active');};
 ui.sprint.addEventListener('pointerup',releaseSprint);ui.sprint.addEventListener('pointercancel',releaseSprint);ui.sprint.addEventListener('lostpointercapture',releaseSprint);

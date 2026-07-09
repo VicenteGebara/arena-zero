@@ -14,7 +14,7 @@ Abra `index.html` em um navegador moderno.
 - `I` e `K`: inclinar a câmera pelo teclado
 - Rodinha do mouse: aproximar ou afastar a câmera
 - Segurar e soltar o clique: chute carregado
-- `Espaço`: passe direcionado
+- Segurar e soltar `Espaço`: passe direcionado carregado
 - `E`: desarme com impulso
 - Celular/tablet: joystick na esquerda, botões de chute, passe, desarme e correr na direita
 - Celular/tablet: arraste o dedo na tela para girar a câmera
@@ -33,7 +33,7 @@ Abra `index.html` em um navegador moderno.
 - Controle de um único atleta
 - Sprint limitado por energia
 - Chute carregado com direção livre
-- Passe assistido para companheiros
+- Passe assistido para companheiros com força carregada no `Espaço`
 - Controles mobile sensíveis ao toque
 - Desarme com impulso e tempo de recarga
 - Paredes com rebote e bola sempre em jogo
